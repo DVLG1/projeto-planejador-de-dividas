@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Microplan - Frontend</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="auth-screen" style="display:none;">
+      <!-- Login page -->
+    </div>
+    <div id="main-screen" style="display:none;">
+      <aside class="sidebar">
+        <h2>Microplan</h2>
+        <div id="user-info" class="user-info"></div>
+        <nav id="nav-menu">
+          <!-- Menu dinâmico baseado em tipo de acesso -->
+        </nav>
+        <button id="logout-btn" class="btn secondary" style="width:100%; margin-top:20px;">Sair</button>
+      </aside>
+      <main class="content">
+        <header>
+          <h1 id="page-title">Menu</h1>
+        </header>
+        <section id="page"></section>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
