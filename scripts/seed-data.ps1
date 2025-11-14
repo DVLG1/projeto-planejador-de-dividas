@@ -1,6 +1,7 @@
-Write-Host "MicroPlan seed script: posting sample data to http://localhost:8080"
+Write-Host "MicroPlan seed script: posting sample data to http://localhost:9090"
 
-$base = 'http://localhost:8080'
+# Use same base as the application port. Updated to 9090 by default.
+$base = 'http://localhost:9090'
 
 Write-Host "Waiting for API to become available..."
 for ($i=0; $i -lt 30; $i++) {
