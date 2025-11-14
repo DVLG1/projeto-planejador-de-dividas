@@ -1,6 +1,7 @@
 package com.example.microplan.controller;
 
 import com.example.microplan.model.Divida;
+import com.example.microplan.dto.response.DividaResponse;
 import com.example.microplan.repository.DividaRepository;
 import com.example.microplan.service.DividaService;
 import org.springframework.http.ResponseEntity;
@@ -22,26 +23,26 @@ public class DividaController {
     }
 
     @GetMapping
-    public List<Divida> listarTodas() {
-        return dividaRepo.findAll();
+    public List<DividaResponse> listarTodas() {
+        return dividaRepo.findAll().stream().map(DividaResponse::from).toList();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Divida> buscar(@PathVariable Long id) {
+    public ResponseEntity<DividaResponse> buscar(@PathVariable Long id) {
         Optional<Divida> d = dividaRepo.findById(id);
-        return d.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        return d.map(x -> ResponseEntity.ok(DividaResponse.from(x))).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/usuario/{usuarioId}")
-    public ResponseEntity<List<Divida>> porUsuario(@PathVariable Long usuarioId) {
-        return ResponseEntity.ok(dividaRepo.findByUsuarioId(usuarioId));
+    public ResponseEntity<List<DividaResponse>> porUsuario(@PathVariable Long usuarioId) {
+        return ResponseEntity.ok(dividaRepo.findByUsuarioId(usuarioId).stream().map(DividaResponse::from).toList());
     }
 
     @PostMapping
     public ResponseEntity<?> criar(@RequestBody Divida d) {
         try {
             Divida salvo = dividaService.salvar(d);
-            return ResponseEntity.ok(salvo);
+            return ResponseEntity.ok(DividaResponse.from(salvo));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
         }
@@ -58,7 +59,7 @@ public class DividaController {
             d.setCredor(dados.getCredor());
             d.setUsuario(dados.getUsuario());
             dividaRepo.save(d);
-            return ResponseEntity.ok(d);
+            return ResponseEntity.ok(DividaResponse.from(d));
         }).orElseGet(() -> ResponseEntity.notFound().build());
     }
 

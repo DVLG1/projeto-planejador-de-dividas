@@ -1,6 +1,7 @@
 package com.example.microplan.controller;
 
 import com.example.microplan.model.Credor;
+import com.example.microplan.dto.response.CredorResponse;
 import com.example.microplan.repository.CredorRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,14 +20,15 @@ public class CredorController {
     }
 
     @GetMapping
-    public List<Credor> listar() {
-        return credorRepo.findAll();
+    public List<CredorResponse> listar() {
+        return credorRepo.findAll().stream().map(CredorResponse::from).toList();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Credor> buscar(@PathVariable Long id) {
+    public ResponseEntity<CredorResponse> buscar(@PathVariable Long id) {
         Optional<Credor> c = credorRepo.findById(id);
-        return c.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        return c.map(x -> ResponseEntity.ok(CredorResponse.from(x)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping

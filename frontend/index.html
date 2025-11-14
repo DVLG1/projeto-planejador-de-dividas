@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Microplan - Frontend</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <h2>Microplan</h2>
+      <nav>
+        <button data-route="home">Menu</button>
+        <button data-route="usuarios">Usuários</button>
+        <button data-route="credores">Credores</button>
+        <button data-route="dividas">Dívidas</button>
+        <button data-route="pagamentos">Pagamentos</button>
+        <button data-route="plano">Gerar Plano</button>
+      </nav>
+    </aside>
+    <main class="content">
+      <header>
+        <h1 id="page-title">Menu</h1>
+      </header>
+      <section id="page"></section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

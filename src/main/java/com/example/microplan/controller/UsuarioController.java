@@ -1,6 +1,7 @@
 package com.example.microplan.controller;
 
 import com.example.microplan.model.Usuario;
+import com.example.microplan.dto.response.UsuarioResponse;
 import com.example.microplan.repository.UsuarioRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
@@ -21,14 +22,15 @@ public class UsuarioController {
     }
 
     @GetMapping
-    public List<Usuario> listar() {
-        return usuarioRepo.findAll();
+    public List<UsuarioResponse> listar() {
+        return usuarioRepo.findAll().stream().map(UsuarioResponse::from).toList();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Usuario> buscar(@PathVariable Long id) {
+    public ResponseEntity<UsuarioResponse> buscar(@PathVariable Long id) {
         Optional<Usuario> u = usuarioRepo.findById(id);
-        return u.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        return u.map(x -> ResponseEntity.ok(UsuarioResponse.from(x)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping

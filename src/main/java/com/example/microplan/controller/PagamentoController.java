@@ -2,6 +2,7 @@ package com.example.microplan.controller;
 
 import com.example.microplan.model.Divida;
 import com.example.microplan.model.Pagamento;
+import com.example.microplan.dto.response.PagamentoResponse;
 import com.example.microplan.repository.DividaRepository;
 import com.example.microplan.repository.PagamentoRepository;
 import com.example.microplan.service.DividaService;
@@ -29,14 +30,14 @@ public class PagamentoController {
     }
 
     @GetMapping
-    public List<Pagamento> listar() {
-        return pagamentoRepo.findAll();
+    public List<PagamentoResponse> listar() {
+        return pagamentoRepo.findAll().stream().map(PagamentoResponse::from).toList();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Pagamento> buscar(@PathVariable Long id) {
+    public ResponseEntity<PagamentoResponse> buscar(@PathVariable Long id) {
         Optional<Pagamento> p = pagamentoRepo.findById(id);
-        return p.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        return p.map(x -> ResponseEntity.ok(PagamentoResponse.from(x))).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
@@ -53,7 +54,7 @@ public class PagamentoController {
             Pagamento salvo = pagamentoRepo.save(p);
             // aplicar o pagamento na dívida
             dividaService.aplicarPagamento(salvo);
-            return ResponseEntity.ok(salvo);
+            return ResponseEntity.ok(PagamentoResponse.from(salvo));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
         }

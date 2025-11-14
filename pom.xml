@@ -26,6 +26,7 @@
     <!-- Fix versions to avoid runtime mismatch -->
     <flyway.version>11.7.2</flyway.version>
     <mysql.connector.version>8.1.0</mysql.connector.version>
+    <springdoc.version>2.1.0</springdoc.version>
   </properties>
 
   <dependencies>
@@ -80,6 +81,13 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
+    </dependency>
+
+    <!-- Swagger / OpenAPI UI (springdoc) -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
     </dependency>
   </dependencies>
 
