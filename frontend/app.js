@@ -106,35 +106,78 @@ async function renderUsuarios(){
   try {
     const res = await fetch(`${API_BASE}/usuarios`);
     const data = await res.json();
+    const arr = data.content || data;
+    if (!Array.isArray(arr)) {
+      page.innerHTML = '<div class="notice">Erro: resposta inesperada do servidor</div>';
+      return;
+    }
     page.innerHTML = '';
     const btnNew = document.createElement('button'); btnNew.className='btn'; btnNew.textContent='Novo usuário';
     btnNew.onclick = () => showUsuarioForm();
     page.appendChild(btnNew);
-    page.appendChild(createTable(['ID','Nome','Email','Renda Mensal'], data.map(u => [u.id,u.nome,u.email,u.rendaMensal])));
+    const headers = ['ID','Nome','Email','Renda Mensal', 'Ações'];
+    const rows = arr.map(u => [
+      u.id,
+      u.nome,
+      u.email,
+      u.rendaMensal,
+      `<button class="btn small" onclick="editUsuario(${u.id}, '${u.nome}', '${u.email}', ${u.rendaMensal})">Editar</button> ` +
+      `<button class="btn secondary small" onclick="deleteUsuario(${u.id}, '${u.nome}')">Excluir</button>`
+    ]);
+    page.appendChild(createTable(headers, rows));
   } catch(e){ page.innerHTML = `<div class="notice">Erro: ${e.message}</div>` }
 }
 
-function showUsuarioForm(){
+let editingUsuarioId = null;
+
+function showUsuarioForm(userId, userNome, userEmail, userRenda){
   page.innerHTML = '';
+  editingUsuarioId = userId || null;
+  const isEditing = editingUsuarioId !== null;
   const form = document.createElement('div');
   form.innerHTML = `
-    <div class="form-row"><input id="u-nome" placeholder="Nome"><input id="u-email" placeholder="Email"></div>
-    <div class="form-row"><input id="u-renda" placeholder="Renda Mensal (ex: 2500.00)"></div>
-    <button class="btn" id="u-save">Salvar</button>
+    <div class="form-row"><input id="u-nome" placeholder="Nome" value="${userNome || ''}"><input id="u-email" placeholder="Email" value="${userEmail || ''}"></div>
+    <div class="form-row"><input id="u-renda" placeholder="Renda Mensal (ex: 2500.00)" value="${userRenda || ''}"></div>
+    <button class="btn" id="u-save">${isEditing ? 'Atualizar' : 'Salvar'}</button>
     <button class="btn secondary" id="u-cancel">Cancelar</button>
   `;
   page.appendChild(form);
   document.getElementById('u-save').onclick = async () => {
     const payload = { nome: document.getElementById('u-nome').value, email: document.getElementById('u-email').value, rendaMensal: parseFloat(document.getElementById('u-renda').value) };
     try {
-      const res = await fetch(`${API_BASE}/usuarios`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const json = await res.json();
-      if (!res.ok) return alert(json.error || 'Erro');
-      alert('Usuário criado: ' + json.id);
+      if (isEditing) {
+        const res = await fetch(`${API_BASE}/usuarios/${editingUsuarioId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const json = await res.json();
+        if (!res.ok) return alert(json.error || 'Erro');
+        alert('Usuário atualizado!');
+      } else {
+        const res = await fetch(`${API_BASE}/usuarios`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const json = await res.json();
+        if (!res.ok) return alert(json.error || 'Erro');
+        alert('Usuário criado: ' + json.id);
+      }
       renderUsuarios();
     } catch(e){ alert(e.message) }
   };
   document.getElementById('u-cancel').onclick = renderUsuarios;
+}
+
+function editUsuario(id, nome, email, renda) {
+  showUsuarioForm(id, nome, email, renda);
+}
+
+async function deleteUsuario(id, nome) {
+  if (confirm(`Tem certeza que deseja excluir o usuário "${nome}"?`)) {
+    try {
+      const res = await fetch(`${API_BASE}/usuarios/${id}`, {method:'DELETE'});
+      if (!res.ok && res.status !== 204) {
+        const json = await res.json().catch(()=>({}));
+        return alert(json.error || 'Erro ao excluir');
+      }
+      alert('Usuário excluído!');
+      renderUsuarios();
+    } catch(e){ alert('Erro: ' + e.message) }
+  }
 }
 
 async function renderCredores(){
@@ -142,34 +185,71 @@ async function renderCredores(){
   try {
     const res = await fetch(`${API_BASE}/credores`);
     const data = await res.json();
+    if (!Array.isArray(data)) {
+      page.innerHTML = '<div class="notice">Erro: resposta inesperada do servidor</div>';
+      return;
+    }
     page.innerHTML = '';
     const btnNew = document.createElement('button'); btnNew.className='btn'; btnNew.textContent='Novo credor';
     btnNew.onclick = () => showCredorForm();
     page.appendChild(btnNew);
-    page.appendChild(createTable(['ID','Nome','Contato'], data.map(c => [c.id,c.nome,c.contato])));
+    const headers = ['ID','Nome','Contato', 'Ações'];
+    const rows = data.map(c => [
+      c.id,
+      c.nome,
+      c.contato,
+      `<button class="btn small" onclick="editCredor(${c.id}, '${c.nome}', '${c.contato}')">Editar</button> ` +
+      `<button class="btn secondary small" onclick="deleteCredor(${c.id}, '${c.nome}')">Excluir</button>`
+    ]);
+    page.appendChild(createTable(headers, rows));
   } catch(e){ page.innerHTML = `<div class="notice">Erro: ${e.message}</div>` }
 }
 
-function showCredorForm(){
+let editingCredorId = null;
+
+function showCredorForm(credorId, credorNome, credorContato){
   page.innerHTML = '';
+  editingCredorId = credorId || null;
+  const isEditing = editingCredorId !== null;
   const form = document.createElement('div');
   form.innerHTML = `
-    <div class="form-row"><input id="c-nome" placeholder="Nome"><input id="c-contato" placeholder="Contato"></div>
-    <button class="btn" id="c-save">Salvar</button>
+    <div class="form-row"><input id="c-nome" placeholder="Nome" value="${credorNome || ''}"><input id="c-contato" placeholder="Contato" value="${credorContato || ''}"></div>
+    <button class="btn" id="c-save">${isEditing ? 'Atualizar' : 'Salvar'}</button>
     <button class="btn secondary" id="c-cancel">Cancelar</button>
   `;
   page.appendChild(form);
   document.getElementById('c-save').onclick = async () => {
     const payload = { nome: document.getElementById('c-nome').value, contato: document.getElementById('c-contato').value };
     try {
-      const res = await fetch(`${API_BASE}/credores`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const json = await res.json();
-      if (!res.ok) return alert('Erro');
-      alert('Credor criado: ' + json.id);
+      if (isEditing) {
+        const res = await fetch(`${API_BASE}/credores/${editingCredorId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if (!res.ok) return alert('Erro ao atualizar credor');
+        alert('Credor atualizado!');
+      } else {
+        const res = await fetch(`${API_BASE}/credores`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const json = await res.json();
+        if (!res.ok) return alert('Erro ao criar credor');
+        alert('Credor criado: ' + json.id);
+      }
       renderCredores();
     } catch(e){ alert(e.message) }
   };
   document.getElementById('c-cancel').onclick = renderCredores;
+}
+
+function editCredor(id, nome, contato) {
+  showCredorForm(id, nome, contato);
+}
+
+async function deleteCredor(id, nome) {
+  if (confirm(`Tem certeza que deseja excluir o credor "${nome}"?`)) {
+    try {
+      const res = await fetch(`${API_BASE}/credores/${id}`, {method:'DELETE'});
+      if (!res.ok && res.status !== 204) return alert('Erro ao excluir credor');
+      alert('Credor excluído!');
+      renderCredores();
+    } catch(e){ alert('Erro: ' + e.message) }
+  }
 }
 
 async function renderDividas(){
@@ -177,25 +257,46 @@ async function renderDividas(){
   try {
     const res = await fetch(`${API_BASE}/dividas`);
     const data = await res.json();
+    if (!Array.isArray(data)) {
+      page.innerHTML = '<div class="notice">Erro: resposta inesperada do servidor</div>';
+      return;
+    }
     page.innerHTML = '';
     const btnNew = document.createElement('button'); btnNew.className='btn'; btnNew.textContent='Nova dívida';
     btnNew.onclick = () => showDividaForm();
     page.appendChild(btnNew);
-    page.appendChild(createTable(['ID','Usuário','Credor','Descrição','Saldo','Juros%','Parcela','Vencimento'], data.map(d => [d.id,d.usuarioNome,d.credorNome,d.descricao,d.saldoAtual,d.taxaJurosAnual,d.parcelaMinima,d.vencimentoMensal])));
+    const headers = ['ID','Usuário','Credor','Descrição','Saldo','Juros%','Parcela','Vencimento', 'Ações'];
+    const rows = data.map(d => [
+      d.id,
+      d.usuarioNome,
+      d.credorNome,
+      d.descricao,
+      d.saldoAtual,
+      d.taxaJurosAnual,
+      d.parcelaMinima,
+      d.vencimentoMensal,
+      `<button class="btn small" onclick="editDivida(${d.id}, ${d.usuarioId || (d.usuario && d.usuario.id)}, ${d.credorId || (d.credor && d.credor.id)}, '${d.descricao}', ${d.saldoAtual}, ${d.taxaJurosAnual}, ${d.parcelaMinima}, ${d.vencimentoMensal})">Editar</button> ` +
+      `<button class="btn secondary small" onclick="deleteDivida(${d.id}, '${d.descricao}')">Excluir</button>`
+    ]);
+    page.appendChild(createTable(headers, rows));
   } catch(e){ page.innerHTML = `<div class="notice">Erro: ${e.message}</div>` }
 }
 
-function showDividaForm(){
+let editingDividaId = null;
+
+function showDividaForm(dividaId, usuarioId, credorId, descricao, saldo, taxa, parcela, vencimento){
   page.innerHTML = '';
+  editingDividaId = dividaId || null;
+  const isEditing = editingDividaId !== null;
   const form = document.createElement('div');
   form.innerHTML = `
     <div class="small">Você precisa já ter ` +
     `usuarios e credores criados. Use seus ids abaixo.</div>
-    <div class="form-row"><input id="d-usuario" placeholder="usuarioId"><input id="d-credor" placeholder="credorId"></div>
-    <div class="form-row"><input id="d-descricao" placeholder="Descrição"><input id="d-saldo" placeholder="Saldo (ex: 1500.00)"></div>
-    <div class="form-row"><input id="d-taxa" placeholder="taxa juros anual (ex: 10.00)"><input id="d-parcela" placeholder="parcela minima (ex: 50.00)"></div>
-    <div class="form-row"><input id="d-venc" placeholder="vencimentoMensal (1-28)"></div>
-    <button class="btn" id="d-save">Salvar</button>
+    <div class="form-row"><input id="d-usuario" placeholder="usuarioId" value="${usuarioId || ''}"><input id="d-credor" placeholder="credorId" value="${credorId || ''}"></div>
+    <div class="form-row"><input id="d-descricao" placeholder="Descrição" value="${descricao || ''}"><input id="d-saldo" placeholder="Saldo (ex: 1500.00)" value="${saldo || ''}"></div>
+    <div class="form-row"><input id="d-taxa" placeholder="taxa juros anual (ex: 10.00)" value="${taxa || ''}"><input id="d-parcela" placeholder="parcela minima (ex: 50.00)" value="${parcela || ''}"></div>
+    <div class="form-row"><input id="d-venc" placeholder="vencimentoMensal (1-28)" value="${vencimento || ''}"></div>
+    <button class="btn" id="d-save">${isEditing ? 'Atualizar' : 'Salvar'}</button>
     <button class="btn secondary" id="d-cancel">Cancelar</button>
   `;
   page.appendChild(form);
@@ -210,14 +311,35 @@ function showDividaForm(){
       vencimentoMensal: parseInt(document.getElementById('d-venc').value)
     };
     try {
-      const res = await fetch(`${API_BASE}/dividas`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const json = await res.json();
-      if (!res.ok) return alert(json.error || 'Erro');
-      alert('Dívida criada: ' + json.id);
+      if (isEditing) {
+        const res = await fetch(`${API_BASE}/dividas/${editingDividaId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if (!res.ok) return alert('Erro ao atualizar dívida');
+        alert('Dívida atualizada!');
+      } else {
+        const res = await fetch(`${API_BASE}/dividas`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const json = await res.json();
+        if (!res.ok) return alert(json.error || 'Erro');
+        alert('Dívida criada: ' + json.id);
+      }
       renderDividas();
     } catch(e){ alert(e.message) }
   };
   document.getElementById('d-cancel').onclick = renderDividas;
+}
+
+function editDivida(id, usuarioId, credorId, descricao, saldo, taxa, parcela, vencimento) {
+  showDividaForm(id, usuarioId, credorId, descricao, saldo, taxa, parcela, vencimento);
+}
+
+async function deleteDivida(id, descricao) {
+  if (confirm(`Tem certeza que deseja excluir a dívida "${descricao}"?`)) {
+    try {
+      const res = await fetch(`${API_BASE}/dividas/${id}`, {method:'DELETE'});
+      if (!res.ok && res.status !== 204) return alert('Erro ao excluir dívida');
+      alert('Dívida excluída!');
+      renderDividas();
+    } catch(e){ alert('Erro: ' + e.message) }
+  }
 }
 
 async function renderPagamentos(){
@@ -225,35 +347,75 @@ async function renderPagamentos(){
   try {
     const res = await fetch(`${API_BASE}/pagamentos`);
     const data = await res.json();
+    if (!Array.isArray(data)) {
+      page.innerHTML = '<div class="notice">Erro: resposta inesperada do servidor</div>';
+      return;
+    }
     page.innerHTML = '';
     const btnNew = document.createElement('button'); btnNew.className='btn'; btnNew.textContent='Novo pagamento';
     btnNew.onclick = () => showPagamentoForm();
     page.appendChild(btnNew);
-    page.appendChild(createTable(['ID','Dívida ID','Data','Valor','Tipo','Observação'], data.map(p => [p.id,p.dividaId,p.data,p.valor,p.tipo,p.observacao])));
+    const headers = ['ID','Dívida ID','Data','Valor','Tipo','Observação', 'Ações'];
+    const rows = data.map(p => [
+      p.id,
+      p.dividaId,
+      p.data,
+      p.valor,
+      p.tipo,
+      p.observacao,
+      `<button class="btn small" onclick="editPagamento(${p.id}, ${p.dividaId}, '${p.data}', ${p.valor}, '${p.tipo}', '${p.observacao}')">Editar</button> ` +
+      `<button class="btn secondary small" onclick="deletePagamento(${p.id}, '${p.observacao || 'Pagamento'}')">Excluir</button>`
+    ]);
+    page.appendChild(createTable(headers, rows));
   } catch(e){ page.innerHTML = `<div class="notice">Erro: ${e.message}</div>` }
 }
 
-function showPagamentoForm(){
+let editingPagamentoId = null;
+
+function showPagamentoForm(pagamentoId, dividaId, data, valor, tipo, observacao){
   page.innerHTML = '';
+  editingPagamentoId = pagamentoId || null;
+  const isEditing = editingPagamentoId !== null;
   const form = document.createElement('div');
   form.innerHTML = `
-    <div class="form-row"><input id="p-divida" placeholder="dividaId"><input id="p-valor" placeholder="valor (ex: 100.00)"></div>
-    <div class="form-row"><select id="p-tipo"><option>PARCIAL</option><option>TOTAL</option></select><input id="p-observacao" placeholder="observação"></div>
-    <button class="btn" id="p-save">Registrar</button>
+    <div class="form-row"><input id="p-divida" placeholder="dividaId" value="${dividaId || ''}"><input id="p-valor" placeholder="valor (ex: 100.00)" value="${valor || ''}"></div>
+    <div class="form-row"><select id="p-tipo"><option value="PARCIAL" ${tipo === 'PARCIAL' ? 'selected' : ''}>PARCIAL</option><option value="TOTAL" ${tipo === 'TOTAL' ? 'selected' : ''}>TOTAL</option></select><input id="p-observacao" placeholder="observação" value="${observacao || ''}"></div>
+    <button class="btn" id="p-save">${isEditing ? 'Atualizar' : 'Registrar'}</button>
     <button class="btn secondary" id="p-cancel">Cancelar</button>
   `;
   page.appendChild(form);
   document.getElementById('p-save').onclick = async () => {
     const payload = { divida: { id: parseInt(document.getElementById('p-divida').value) }, valor: parseFloat(document.getElementById('p-valor').value), tipo: document.getElementById('p-tipo').value, observacao: document.getElementById('p-observacao').value };
     try {
-      const res = await fetch(`${API_BASE}/pagamentos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const json = await res.json();
-      if (!res.ok) return alert(json.error || 'Erro');
-      alert('Pagamento criado: ' + json.id);
+      if (isEditing) {
+        const res = await fetch(`${API_BASE}/pagamentos/${editingPagamentoId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if (!res.ok) return alert('Erro ao atualizar pagamento');
+        alert('Pagamento atualizado!');
+      } else {
+        const res = await fetch(`${API_BASE}/pagamentos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const json = await res.json();
+        if (!res.ok) return alert(json.error || 'Erro');
+        alert('Pagamento criado: ' + json.id);
+      }
       renderPagamentos();
     } catch(e){ alert(e.message) }
   };
   document.getElementById('p-cancel').onclick = renderPagamentos;
+}
+
+function editPagamento(id, dividaId, data, valor, tipo, observacao) {
+  showPagamentoForm(id, dividaId, data, valor, tipo, observacao);
+}
+
+async function deletePagamento(id, observacao) {
+  if (confirm(`Tem certeza que deseja excluir o pagamento "${observacao || 'Pagamento'}"?`)) {
+    try {
+      const res = await fetch(`${API_BASE}/pagamentos/${id}`, {method:'DELETE'});
+      if (!res.ok && res.status !== 204) return alert('Erro ao excluir pagamento');
+      alert('Pagamento excluído!');
+      renderPagamentos();
+    } catch(e){ alert('Erro: ' + e.message) }
+  }
 }
 
 function renderGerarPlano(){
@@ -284,7 +446,7 @@ function createTable(headers, rows){
   headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; trh.appendChild(th); });
   thead.appendChild(trh); table.appendChild(thead);
   const tbody = document.createElement('tbody');
-  rows.forEach(r => { const tr = document.createElement('tr'); r.forEach(c => { const td = document.createElement('td'); td.textContent = c === null || c === undefined ? '' : c; tr.appendChild(td); }); tbody.appendChild(tr); });
+  rows.forEach(r => { const tr = document.createElement('tr'); r.forEach(c => { const td = document.createElement('td'); const content = c === null || c === undefined ? '' : c; if (typeof content === 'string' && content.includes('<')) { td.innerHTML = content; } else { td.textContent = content; } tr.appendChild(td); }); tbody.appendChild(tr); });
   table.appendChild(tbody);
   return table;
 }
@@ -327,7 +489,8 @@ async function loginUser() {
 
   try {
     const res = await fetch(`${API_BASE}/usuarios`);
-    const usuarios = await res.json();
+    const data = await res.json();
+    const usuarios = data.content || data;
 
     if (!Array.isArray(usuarios)) {
       alert('Erro ao buscar usuários');

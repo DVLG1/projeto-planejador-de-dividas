@@ -51,17 +51,10 @@ public class UsuarioController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar usuários paginado")
-    public ResponseEntity<Page<UsuarioResponse>> listar(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
-    ) {
-        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1));
-        List<UsuarioResponse> data = usuarioRepo.findAll().stream().map(UsuarioResponse::from).toList();
-        int start = Math.min((int) pageable.getOffset(), data.size());
-        int end = Math.min(start + pageable.getPageSize(), data.size());
-        Page<UsuarioResponse> resp = new PageImpl<>(data.subList(start, end), pageable, data.size());
-        return ResponseEntity.ok(resp);
+    @Operation(summary = "Listar usuários")
+    public ResponseEntity<List<UsuarioResponse>> listar() {
+        List<UsuarioResponse> usuarios = usuarioRepo.findAll().stream().map(UsuarioResponse::from).toList();
+        return ResponseEntity.ok(usuarios);
     }
 
     @GetMapping("/{id}")
