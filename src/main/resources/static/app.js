@@ -321,10 +321,14 @@ function showDividaForm(dividaId, usuarioId, credorId, descricao, saldo, taxa, p
         if (!res.ok) return alert(json.error || 'Erro');
         alert('Dívida criada: ' + json.id);
       }
-      renderDividas();
+      if (currentMode === 'user') {
+        renderMinhasDividas();
+      } else {
+        renderDividas();
+      }
     } catch(e){ alert(e.message) }
   };
-  document.getElementById('d-cancel').onclick = renderDividas;
+  document.getElementById('d-cancel').onclick = currentMode === 'user' ? renderMinhasDividas : renderDividas;
 }
 
 function editDivida(id, usuarioId, credorId, descricao, saldo, taxa, parcela, vencimento) {
@@ -460,15 +464,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // App functionality event listeners
-  const btnDev = document.getElementById('btn-dev');
   const btnLogin = document.getElementById('btn-login');
   const logoutBtn = document.getElementById('logout-btn');
-
-  if (btnDev) btnDev.addEventListener('click', () => {
-    currentMode = 'dev';
-    currentUser = { id: 'admin', nome: 'Administrador (Dev)', email: 'dev@local' };
-    showMainScreen();
-  });
 
   if (btnLogin) btnLogin.addEventListener('click', async () => {
     await loginUser();
@@ -542,25 +539,12 @@ function showMainScreen() {
     userInfo.innerHTML = `<strong>${currentUser.nome}</strong><br><small>${currentUser.email}</small>`;
   }
 
-  if (currentMode === 'dev') {
-    setupDevMenu();
-  } else {
-    setupUserMenu();
-  }
+  setupUserMenu();
 
   navigate('home');
 }
 
-function setupDevMenu() {
-  navMenu.innerHTML = `
-    <button onclick="navigate('home')">Menu</button>
-    <button onclick="navigate('usuarios')">Usuários</button>
-    <button onclick="navigate('credores')">Credores</button>
-    <button onclick="navigate('dividas')">Dívidas</button>
-    <button onclick="navigate('pagamentos')">Pagamentos</button>
-    <button onclick="navigate('plano')">Gerar Plano</button>
-  `;
-}
+
 
 function setupUserMenu() {
   navMenu.innerHTML = `
@@ -572,29 +556,13 @@ function setupUserMenu() {
 
 function navigate(route) {
   page.innerHTML = '';
-
-  if (currentMode === 'dev') {
-    pageTitle.textContent = ({home:'Menu Dev',usuarios:'Usuários',credores:'Credores',dividas:'Dívidas',pagamentos:'Pagamentos',plano:'Gerar Plano'}[route] || 'Menu');
-    if (route === 'home') return renderDevHome();
-    if (route === 'usuarios') return renderUsuarios();
-    if (route === 'credores') return renderCredores();
-    if (route === 'dividas') return renderDividas();
-    if (route === 'pagamentos') return renderPagamentos();
-    if (route === 'plano') return renderGerarPlano();
-  } else {
-    pageTitle.textContent = ({home:'Dashboard','minhas-dividas':'Minhas Dívidas','plano-usuario':'Meu Plano'}[route] || 'Dashboard');
-    if (route === 'home') return renderUserDashboard();
-    if (route === 'minhas-dividas') return renderMinhasDividas();
-    if (route === 'plano-usuario') return renderMeuPlano();
-  }
+  pageTitle.textContent = ({home:'Dashboard','minhas-dividas':'Minhas Dívidas','plano-usuario':'Meu Plano'}[route] || 'Dashboard');
+  if (route === 'home') return renderUserDashboard();
+  if (route === 'minhas-dividas') return renderMinhasDividas();
+  if (route === 'plano-usuario') return renderMeuPlano();
 }
 
-function renderDevHome() {
-  page.innerHTML = `
-    <div class="notice">Bem-vindo ao modo Dev (Admin) do Microplan. Use o menu à esquerda para gerenciar todos os dados.</div>
-    <div class="small">Modo: DESENVOLVIMENTO - Acesso total a todos os recursos.</div>
-  `;
-}
+
 
 function renderUserDashboard() {
   page.innerHTML = '<div class="notice">Carregando...</div>';
@@ -679,7 +647,305 @@ async function renderMinhasDividas(){
   }
 }
 
-// This is a placeholder - the actual renderMeuPlano is in the static app.js
-function renderMeuPlano() {
-  page.innerHTML = '<div class="notice">Funcionalidade de plano disponível no aplicativo principal.</div>';
+// Render the user's plan
+async function renderMeuPlano() {
+  page.innerHTML = '';
+
+  // Check for existing debts
+  let temDividas = false;
+  try {
+    const divRes = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+    const dividas = await divRes.json();
+    temDividas = Array.isArray(dividas) && dividas.length > 0;
+  } catch (e) {
+    console.log('Error checking debts:', e.message);
+  }
+
+  // Check for existing plans
+  let existingPlan;
+  if (temDividas) {
+    try {
+      const res = await fetch(`${API_BASE}/planos/usuario/${currentUser.id}`);
+      const planos = await res.json();
+      if (Array.isArray(planos) && planos.length > 0) {
+        existingPlan = planos[planos.length - 1];
+      }
+    } catch (e) {
+      console.log('No existing plans:', e.message);
+    }
+  }
+
+  const container = document.createElement('div');
+  if (!temDividas) {
+    container.innerHTML = `
+      <h3>Meu Plano de Quitação</h3>
+      <div class="notice">
+        Você precisa adicionar pelo menos uma dívida antes de gerar um plano.
+        Vá para "Minhas Dívidas" para começar.
+      </div>
+    `;
+  } else {
+    container.innerHTML = `
+      <h3>Gerar Meu Plano de Quitação</h3>
+      <p>Insira quanto você pode pagar mensalmente e escolha a estratégia para simular seu plano:</p>
+      <div class="form-row">
+        <input id="valor-mensal" type="number" step="0.01" placeholder="Valor mensal disponível (ex: 500.00)">
+        <select id="estrategia">
+          <option value="AVALANCHE">Avalanche (Maior juros primeiro)</option>
+          <option value="SNOWBALL">Snowball (Menor saldo primeiro)</option>
+        </select>
+      <button class="btn" id="gerar-plano-btn">Gerar Plano</button>
+    </div>
+
+    ${existingPlan ? `
+      <div id="existing-plan-section">
+        <h4>Plano Existente (Último Plano)</h4>
+        <p><strong>Estratégia:</strong> ${existingPlan.estrategia}</p>
+        <p><strong>Valor Disponível Mensal:</strong> R$ ${existingPlan.valorDisponivelMensal}</p>
+        <p><strong>Duração Estimada:</strong> ${existingPlan.duracaoEstimadaMeses} meses</p>
+        <p><strong>Total Estimado a Pagar:</strong> R$ ${existingPlan.totalPagoEstimado}</p>
+        <p><strong>Custo Total de Juros:</strong> R$ ${existingPlan.custoTotalJuros}</p>
+      </div>` : ''}
+
+      <div id="plano-resultado" style="display: none;">
+        <h4>Resultado do Plano</h4>
+        <canvas id="plano-chart" width="400" height="200"></canvas>
+        <h4>Cronograma Detalhado</h4>
+        <div id="plano-table"></div>
+      </div>
+    `;
+
+    // Add event listener for generate button only if there are debts
+    const btn = document.getElementById('gerar-plano-btn');
+    if (btn) {
+      console.log('Gerar Plano button found, attaching event listener');
+      btn.onclick = async () => {
+        console.log('Gerar Plano button clicked');
+        const valor = parseFloat(document.getElementById('valor-mensal').value);
+        const estrategia = document.getElementById('estrategia').value;
+
+        if (!valor || valor <= 0) {
+          alert('Por favor, insira um valor mensal válido.');
+          return;
+        }
+
+        try {
+          const resultDiv = document.getElementById('plano-resultado');
+          resultDiv.style.display = 'block';
+
+          // Generate new plan - send valor as string for BigDecimal compatibility
+          const payload = {
+            usuarioId: currentUser.id,
+            valorDisponivelMensal: valor.toString(),  // Send as string for BigDecimal
+            estrategia: estrategia
+          };
+          console.log('Sending payload:', payload); // Debug log
+
+          const res = await fetch(`${API_BASE}/planos/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const json = await res.json();
+          if (!res.ok) {
+            alert('Erro ao gerar plano: ' + (json.error || 'Erro desconhecido'));
+            return;
+          }
+
+          // Parse details
+          let detalhes;
+          try {
+            detalhes = JSON.parse(json.detalhes);
+          } catch (e) {
+            detalhes = [];
+          }
+
+          // Format details for chart (extract remaining balance per month)
+          const detalhesMeses = detalhes.map(d => ({
+            mes: d.mes,
+            saldoInicial: d.resumo ? d.resumo.saldoRestanteTotal : 0,  // The total remaining balance
+            juros: d.resumo ? d.resumo.jurosDoMes : 0,
+            amortizacao: 0,  // Could parse if available
+            pagamento: 0,    // Could parse if available
+            saldoFinal: d.resumo ? d.resumo.saldoRestanteTotal : 0   // Use total remaining
+          }));
+
+          // Render chart and table
+          renderPlanoChart(json, detalhesMeses);
+          renderPlanoTable(json, detalhesMeses);
+
+        } catch (e) {
+          alert('Erro: ' + e.message);
+        }
+      };
+    }
+  }
+
+  page.appendChild(container);
+}
+
+function renderPlanoChart(plano, detalhes) {
+  const ctx = document.getElementById('plano-chart').getContext('2d');
+
+  // Prepare data for chart
+  const labels = [];
+  const saldoData = [];
+
+  detalhes.forEach(d => {
+    labels.push(`Mês ${d.mes}`);
+    saldoData.push(d.saldoFinal || 0);
+  });
+
+  // Destroy existing chart if any
+  if (window.planoChart) {
+    window.planoChart.destroy();
+  }
+
+  window.planoChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Saldo Remanescente (R$)',
+        data: saldoData,
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        tension: 0.1
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: false,
+          ticks: {
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString();
+            }
+          }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderPlanoTable(plano, detalhes) {
+  const tableContainer = document.getElementById('plano-table');
+  tableContainer.innerHTML = '';
+
+  // Plan summary
+  const summaryDiv = document.createElement('div');
+  summaryDiv.innerHTML = `
+    <h4>Resumo do Plano</h4>
+    <p><strong>Estratégia:</strong> ${plano.estrategia}</p>
+    <p><strong>Duração Estimada:</strong> ${plano.duracaoEstimadaMeses} meses</p>
+    <p><strong>Total Estimado a Pagar:</strong> R$ ${plano.totalPagoEstimado}</p>
+    <p><strong>Custo Total de Juros:</strong> R$ ${plano.custoTotalJuros}</p>
+  `;
+  tableContainer.appendChild(summaryDiv);
+
+  // Detailed table
+  if (Array.isArray(detalhes) && detalhes.length > 0) {
+    const headers = ['Mês', 'Saldo Inicial', 'Juros', 'Amortização', 'Pagamento', 'Saldo Final'];
+    const rows = detalhes.slice(0, 20).map(d => [ // Limit to first 20 months
+      d.mes,
+      'R$ ' + (d.saldoInicial || 0).toFixed(2),
+      'R$ ' + (d.juros || 0).toFixed(2),
+      'R$ ' + (d.amortizacao || 0).toFixed(2),
+      'R$ ' + (d.pagamento || 0).toFixed(2),
+      'R$ ' + (d.saldoFinal || 0).toFixed(2)
+    ]);
+    tableContainer.appendChild(createTable(headers, rows));
+
+    if (detalhes.length > 20) {
+      const moreNote = document.createElement('p');
+      moreNote.textContent = `... e mais ${detalhes.length - 20} meses.`;
+      tableContainer.appendChild(moreNote);
+    }
+  } else {
+    tableContainer.appendChild(document.createElement('p')).textContent = 'Detalhes não disponíveis.';
+  }
+}
+
+function showAddDividaForm() {
+  showDividaFormUser(null, currentUser.id);
+}
+
+function showDividaFormUser(dividaId, usuarioId) {
+  page.innerHTML = '';
+  editingDividaId = dividaId || null;
+  const isEditing = editingDividaId !== null;
+  const form = document.createElement('div');
+  form.innerHTML = `
+    <div class="form-row"><input id="d-credor-nome" placeholder="Nome do Credor" value=""></div>
+    <div class="form-row"><input id="d-descricao" placeholder="Descrição da Dívida" value=""></div>
+    <div class="form-row"><input id="d-saldo" placeholder="Saldo Atual (ex: 1500.00)" value="" type="number" step="0.01"></div>
+    <div class="form-row"><input id="d-taxa" placeholder="Taxa de Juros Anual (ex: 10.00)" value="" type="number" step="0.01"><input id="d-parcela" placeholder="Parcela Mínima (ex: 50.00)" value="" type="number" step="0.01"></div>
+    <div class="form-row"><input id="d-venc" placeholder="Dia de Vencimento (1-28)" value="" type="number" min="1" max="28"></div>
+    <button class="btn" id="d-save">${isEditing ? 'Atualizar' : 'Salvar'}</button>
+    <button class="btn secondary" id="d-cancel">Cancelar</button>
+  `;
+  page.appendChild(form);
+  document.getElementById('d-save').onclick = async () => {
+    const credorNome = document.getElementById('d-credor-nome').value.trim();
+    const descricao = document.getElementById('d-descricao').value.trim();
+    const saldoAtual = parseFloat(document.getElementById('d-saldo').value);
+    const taxaJurosAnual = parseFloat(document.getElementById('d-taxa').value);
+    const parcelaMinima = parseFloat(document.getElementById('d-parcela').value);
+    const vencimentoMensal = parseInt(document.getElementById('d-venc').value);
+
+    if (!credorNome || !descricao || !saldoAtual || taxaJurosAnual < 0 || !parcelaMinima || !vencimentoMensal) {
+      alert('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    try {
+      // Create credor (or reuse existing with same name if it exists)
+      let credor;
+      const credorPost = await fetch(`${API_BASE}/credores`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: credorNome, contato: '' })
+      });
+      if (credorPost.ok) {
+        credor = await credorPost.json();
+      } else {
+        alert('Erro ao criar credor');
+        return;
+      }
+
+      const payload = {
+        usuario: { id: usuarioId },
+        credor: { id: credor.id },
+        descricao,
+        saldoAtual,
+        taxaJurosAnual,
+        parcelaMinima,
+        vencimentoMensal
+      };
+
+      if (isEditing) {
+        const res = await fetch(`${API_BASE}/dividas/${editingDividaId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if (!res.ok) return alert('Erro ao atualizar dívida');
+        alert('Dívida atualizada!');
+      } else {
+        const res = await fetch(`${API_BASE}/dividas`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const json = await res.json();
+        if (!res.ok) return alert('Erro ao criar dívida');
+        alert('Dívida criada!');
+      }
+      renderMinhasDividas();
+    } catch(e){ alert('Erro: ' + e.message) }
+  };
+  document.getElementById('d-cancel').onclick = renderMinhasDividas;
 }

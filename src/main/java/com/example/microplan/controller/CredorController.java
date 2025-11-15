@@ -24,6 +24,8 @@ public class CredorController {
         return credorRepo.findAll().stream().map(CredorResponse::from).toList();
     }
 
+
+
     @GetMapping("/{id}")
     public ResponseEntity<CredorResponse> buscar(@PathVariable Long id) {
         Optional<Credor> c = credorRepo.findById(id);
