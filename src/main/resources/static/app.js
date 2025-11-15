@@ -649,16 +649,25 @@ async function renderMinhasDividas(){
 
 // Render the user's plan
 async function renderMeuPlano() {
+  console.log('Rendering meu plano page');
   page.innerHTML = '';
+
+  // Check if user is logged in
+  if (!currentUser || !currentUser.id) {
+    page.innerHTML = '<div class="notice">Você precisa estar logado para acessar seus planos.</div>';
+    return;
+  }
 
   // Check for existing debts
   let temDividas = false;
   try {
+    console.log('Checking debts for user:', currentUser.id);
     const divRes = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
     const dividas = await divRes.json();
     temDividas = Array.isArray(dividas) && dividas.length > 0;
+    console.log('User has debts:', temDividas, 'count:', dividas.length);
   } catch (e) {
-    console.log('Error checking debts:', e.message);
+    console.log('Error checking debts:', e);
   }
 
   // Check for existing plans
@@ -671,7 +680,7 @@ async function renderMeuPlano() {
         existingPlan = planos[planos.length - 1];
       }
     } catch (e) {
-      console.log('No existing plans:', e.message);
+      console.log('No existing plans:', e);
     }
   }
 
@@ -714,75 +723,83 @@ async function renderMeuPlano() {
         <div id="plano-table"></div>
       </div>
     `;
-
-    // Add event listener for generate button only if there are debts
-    const btn = document.getElementById('gerar-plano-btn');
-    if (btn) {
-      console.log('Gerar Plano button found, attaching event listener');
-      btn.onclick = async () => {
-        console.log('Gerar Plano button clicked');
-        const valor = parseFloat(document.getElementById('valor-mensal').value);
-        const estrategia = document.getElementById('estrategia').value;
-
-        if (!valor || valor <= 0) {
-          alert('Por favor, insira um valor mensal válido.');
-          return;
-        }
-
-        try {
-          const resultDiv = document.getElementById('plano-resultado');
-          resultDiv.style.display = 'block';
-
-          // Generate new plan - send valor as string for BigDecimal compatibility
-          const payload = {
-            usuarioId: currentUser.id,
-            valorDisponivelMensal: valor.toString(),  // Send as string for BigDecimal
-            estrategia: estrategia
-          };
-          console.log('Sending payload:', payload); // Debug log
-
-          const res = await fetch(`${API_BASE}/planos/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const json = await res.json();
-          if (!res.ok) {
-            alert('Erro ao gerar plano: ' + (json.error || 'Erro desconhecido'));
-            return;
-          }
-
-          // Parse details
-          let detalhes;
-          try {
-            detalhes = JSON.parse(json.detalhes);
-          } catch (e) {
-            detalhes = [];
-          }
-
-          // Format details for chart (extract remaining balance per month)
-          const detalhesMeses = detalhes.map(d => ({
-            mes: d.mes,
-            saldoInicial: d.resumo ? d.resumo.saldoRestanteTotal : 0,  // The total remaining balance
-            juros: d.resumo ? d.resumo.jurosDoMes : 0,
-            amortizacao: 0,  // Could parse if available
-            pagamento: 0,    // Could parse if available
-            saldoFinal: d.resumo ? d.resumo.saldoRestanteTotal : 0   // Use total remaining
-          }));
-
-          // Render chart and table
-          renderPlanoChart(json, detalhesMeses);
-          renderPlanoTable(json, detalhesMeses);
-
-        } catch (e) {
-          alert('Erro: ' + e.message);
-        }
-      };
-    }
   }
 
   page.appendChild(container);
+
+  // Add event listener for generate button only if there are debts - delayed to ensure DOM rendering
+  if (temDividas) {
+    setTimeout(() => {
+      const btn = document.getElementById('gerar-plano-btn');
+      if (btn) {
+        console.log('Gerar Plano button found, attaching event listener');
+        btn.onclick = async () => {
+          console.log('Gerar Plano button clicked');
+          const valorInput = document.getElementById('valor-mensal');
+          const estrategiaSelect = document.getElementById('estrategia');
+
+          if (!valorInput || !estrategiaSelect) {
+            console.error('Required form elements not found');
+            alert('Erro no formulário. Recarregue a página.');
+            return;
+          }
+
+          const valor = parseFloat(valorInput.value);
+          const estrategia = estrategiaSelect.value;
+
+          if (!valor || valor <= 0) {
+            alert('Por favor, insira um valor mensal válido.');
+            return;
+          }
+
+          try {
+            const resultDiv = document.getElementById('plano-resultado');
+            if (resultDiv) {
+              resultDiv.style.display = 'block';
+            }
+
+            // Generate new plan - send valor as string for BigDecimal compatibility
+            const payload = {
+              usuarioId: currentUser.id,
+              valorDisponivelMensal: valor.toString(),  // Send as string for BigDecimal
+              estrategia: estrategia
+            };
+            console.log('Sending payload:', payload); // Debug log
+
+            const res = await fetch(`${API_BASE}/planos/generate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const json = await res.json();
+            if (!res.ok) {
+              alert('Erro ao gerar plano: ' + (json.error || 'Erro desconhecido'));
+              return;
+            }
+
+            // Parse details
+            let detalhes;
+            try {
+              detalhes = JSON.parse(json.detalhes);
+            } catch (e) {
+              detalhes = [];
+            }
+
+            // Render chart and table
+            renderPlanoChart(json, detalhes);
+            renderPlanoTable(json, detalhes);
+
+          } catch (e) {
+            console.error('Error in plan generation:', e);
+            alert('Erro: ' + e.message);
+          }
+        };
+      } else {
+        console.error('Gerar Plano button not found in DOM');
+      }
+    }, 100); // Small delay to ensure DOM is fully rendered
+  }
 }
 
 function renderPlanoChart(plano, detalhes) {
@@ -794,7 +811,7 @@ function renderPlanoChart(plano, detalhes) {
 
   detalhes.forEach(d => {
     labels.push(`Mês ${d.mes}`);
-    saldoData.push(d.saldoFinal || 0);
+    saldoData.push((d.resumo && d.resumo.saldoRestanteTotal) || 0);
   });
 
   // Destroy existing chart if any
@@ -857,14 +874,23 @@ function renderPlanoTable(plano, detalhes) {
   // Detailed table
   if (Array.isArray(detalhes) && detalhes.length > 0) {
     const headers = ['Mês', 'Saldo Inicial', 'Juros', 'Amortização', 'Pagamento', 'Saldo Final'];
-    const rows = detalhes.slice(0, 20).map(d => [ // Limit to first 20 months
-      d.mes,
-      'R$ ' + (d.saldoInicial || 0).toFixed(2),
-      'R$ ' + (d.juros || 0).toFixed(2),
-      'R$ ' + (d.amortizacao || 0).toFixed(2),
-      'R$ ' + (d.pagamento || 0).toFixed(2),
-      'R$ ' + (d.saldoFinal || 0).toFixed(2)
-    ]);
+    const rows = detalhes.slice(0, 20).map(d => { // Limit to first 20 months
+      const resumo = d.resumo || {};
+      const saldoFinal = resumo.saldoRestanteTotal || 0;
+      const juros = resumo.jurosDoMes || 0;
+      const pagoNoMes = resumo.pagoNoMes || 0;
+      const saldoInicial = saldoFinal - juros + pagoNoMes;
+      const amortizacao = pagoNoMes;
+      const pagamento = 0;
+      return [
+        d.mes,
+        'R$ ' + saldoInicial.toFixed(2),
+        'R$ ' + juros.toFixed(2),
+        'R$ ' + amortizacao.toFixed(2),
+        'R$ ' + pagamento.toFixed(2),
+        'R$ ' + saldoFinal.toFixed(2)
+      ];
+    });
     tableContainer.appendChild(createTable(headers, rows));
 
     if (detalhes.length > 20) {

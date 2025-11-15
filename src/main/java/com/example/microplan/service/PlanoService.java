@@ -163,8 +163,11 @@ public class PlanoService {
                 }
             }
 
+            BigDecimal pagoNoMes = disponivel.subtract(restante);
+
             ObjectNode resumo = objectMapper.createObjectNode();
             resumo.put("jurosDoMes", jurosMes.doubleValue());
+            resumo.put("pagoNoMes", pagoNoMes.doubleValue());
             resumo.put("saldoRestanteTotal", sims.stream().map(s -> s.saldo).reduce(BigDecimal.ZERO, BigDecimal::add).doubleValue());
 
             mesNode.set("resumo", resumo);
