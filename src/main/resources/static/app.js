@@ -455,23 +455,65 @@ function createTable(headers, rows){
   return table;
 }
 
-// Add event listeners after DOM loads
-document.addEventListener('DOMContentLoaded', function() {
-  // Landing page event listeners
-  const signupLink = document.getElementById('btn-signup-link');
-  if (signupLink) {
-    signupLink.addEventListener('click', showSignupModal);
+// Check for existing login session and setup UI
+async function checkLoginSession() {
+  const savedUser = localStorage.getItem('currentUser');
+  if (savedUser) {
+    try {
+      const user = JSON.parse(savedUser);
+      if (user && user.id && user.nome) {
+        currentUser = user;
+        currentMode = 'user';
+        showMainScreen();
+        return true;
+      }
+    } catch (e) {
+      localStorage.removeItem('currentUser');
+    }
   }
+  return false;
+}
 
-  // App functionality event listeners
-  const btnLogin = document.getElementById('btn-login');
-  const logoutBtn = document.getElementById('logout-btn');
+// Add event listeners after DOM loads
+document.addEventListener('DOMContentLoaded', async function() {
+  if (window.location.pathname === '/login' || window.location.pathname === '/login.html') {
+    // Setup for login page
+    const signupLink = document.getElementById('btn-signup-link');
+    if (signupLink) {
+      signupLink.addEventListener('click', showSignupModal);
+    }
 
-  if (btnLogin) btnLogin.addEventListener('click', async () => {
-    await loginUser();
-  });
-
-  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+    const btnLogin = document.getElementById('btn-login');
+    if (btnLogin) {
+      btnLogin.addEventListener('click', async () => {
+        await loginUserForPage();
+      });
+    }
+  } else if (window.location.pathname === '/microplan.html') {
+    // Check session for app page
+    const isLoggedIn = await checkLoginSession();
+    if (!isLoggedIn) {
+      window.location.href = '/login.html';
+      return;
+    }
+    // Add logout listener
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', logoutForPage);
+    }
+  } else if (window.location.pathname === '/microplan' || window.location.pathname === '/microplan.html') {
+    // Check session for app page
+    const isLoggedIn = await checkLoginSession();
+    if (!isLoggedIn) {
+      window.location.href = '/login';
+      return;
+    }
+    // Add logout listener
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', logoutForPage);
+    }
+  }
 });
 
 // Login functions
@@ -508,22 +550,109 @@ async function loginUser() {
 
     currentUser = user;
     currentMode = 'user';
+    localStorage.setItem('loggedUserId', user.id.toString());
     showMainScreen();
   } catch (e) {
     alert('Erro: ' + e.message);
   }
 }
 
+async function loginUserForPage() {
+  const email = document.getElementById('login-email').value;
+  const senha = document.getElementById('login-senha').value;
+
+  if (!email || !senha) {
+    alert('Preencha email e senha');
+    return;
+  }
+
+  try {
+    // First try API
+    let user;
+    try {
+      const res = await fetch(`${API_BASE}/usuarios`);
+      const data = await res.json();
+      const usuarios = data.content || data;
+
+      if (Array.isArray(usuarios)) {
+        user = usuarios.find(u => u.email.toLowerCase() === email.toLowerCase());
+      }
+    } catch (apiError) {
+      // API failed, use fake user for testing
+    }
+
+    // If user not found, check stored credentials and create user in database
+    if (!user) {
+      // Check if we have stored credentials from signup
+      const stored = localStorage.getItem(`user_${email}`);
+      if (!stored || JSON.parse(stored).senha !== senha) {
+        alert('Stored credentials failed. Use the cadastro first.');
+        return;
+      }
+
+      // Create user in database using the stored signup data
+      const storedData = JSON.parse(stored);
+      try {
+        const createRes = await fetch(`${API_BASE}/usuarios`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nome: email.split('@')[0], // Use email prefix as name, or could be enhanced to store full name
+            email: email,
+            rendaMensal: null // Could be enhanced to store this too
+          })
+        });
+        if (createRes.ok) {
+          user = await createRes.json();
+        } else {
+          alert('Erro ao criar usuário na base de dados');
+          return;
+        }
+      } catch (createError) {
+        alert('Erro ao conectar com o servidor para criar usuário');
+        return;
+      }
+    } else {
+      // If user found from API, still check stored credentials
+      const stored = localStorage.getItem(`user_${email}`);
+      if (!stored || JSON.parse(stored).senha !== senha) {
+        alert('Credenciais incorretas');
+        return;
+      }
+    }
+
+    // Set session and redirect to app
+    currentUser = user;
+    currentMode = 'user';
+    localStorage.setItem('loggedUserId', user.id.toString());
+    localStorage.setItem('currentUser', JSON.stringify(user));
+    window.location.href = '/microplan.html';
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+function logoutForPage() {
+  currentUser = null;
+  currentMode = null;
+  localStorage.removeItem('loggedUserId');
+  localStorage.removeItem('currentUser');
+  window.location.href = '/login.html';
+}
+
 function logout() {
   currentUser = null;
   currentMode = null;
+  localStorage.removeItem('loggedUserId');
   document.getElementById('main-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
 }
 
 function showMainScreen() {
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('main-screen').style.display = 'block';
+  const authEl = document.getElementById('auth-screen');
+  const mainEl = document.getElementById('main-screen');
+  if (authEl) authEl.style.display = 'none';
+  if (mainEl) mainEl.style.display = 'block';
 
   // Initialize elements
   authScreen = document.getElementById('auth-screen');
@@ -718,7 +847,7 @@ async function renderMeuPlano() {
 
       <div id="plano-resultado" style="display: none;">
         <h4>Resultado do Plano</h4>
-        <canvas id="plano-chart" width="400" height="200"></canvas>
+        <div id="plano-charts" style="display: flex; flex-wrap: wrap; gap: 20px;"></div>
         <h4>Cronograma Detalhado</h4>
         <div id="plano-table"></div>
       </div>
@@ -802,57 +931,115 @@ async function renderMeuPlano() {
   }
 }
 
-function renderPlanoChart(plano, detalhes) {
-  const ctx = document.getElementById('plano-chart').getContext('2d');
+const chartColors = [
+  'rgb(255, 99, 132)',   // red
+  'rgb(54, 162, 235)',   // blue
+  'rgb(255, 205, 86)',   // yellow
+  'rgb(75, 192, 192)',   // green
+  'rgb(153, 102, 255)',  // purple
+  'rgb(255, 159, 64)',   // orange
+  'rgb(231, 233, 237)',  // grey
+  'rgb(199, 199, 199)',  // light grey
+  'rgb(83, 102, 255)',   // light blue
+  'rgb(255, 99, 255)'    // pink
+];
 
-  // Prepare data for chart
-  const labels = [];
-  const saldoData = [];
+function getChartColor(index) {
+  return chartColors[index % chartColors.length];
+}
+
+function renderPlanoChart(plano, detalhes) {
+  const chartsContainer = document.getElementById('plano-charts');
+  chartsContainer.innerHTML = ''; // Clear any existing charts
+
+  // Collect balance data across months for each debt
+  const balanceMap = {}; // id -> {descricao, balances: [month1_balance, ...]}
 
   detalhes.forEach(d => {
-    labels.push(`Mês ${d.mes}`);
-    saldoData.push((d.resumo && d.resumo.saldoRestanteTotal) || 0);
+    const dividas = d.dividas || [];
+    dividas.forEach(debt => {
+      const id = debt.id;
+      if (!balanceMap[id]) {
+        balanceMap[id] = { descricao: debt.descricao, balances: [] };
+      }
+      balanceMap[id].balances.push(debt.saldo);
+    });
   });
 
-  // Destroy existing chart if any
-  if (window.planoChart) {
-    window.planoChart.destroy();
-  }
+  const labels = detalhes.map(d => `Mês ${d.mes}`);
 
-  window.planoChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Saldo Remanescente (R$)',
-        data: saldoData,
-        borderColor: 'rgb(75, 192, 192)',
-        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-        tension: 0.1
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: false,
-          ticks: {
-            callback: function(value) {
-              return 'R$ ' + value.toLocaleString();
+  // Create a separate chart for each debt
+  let colorIndex = 0;
+  Object.values(balanceMap).forEach(debt => {
+    // Create chart container
+    const chartDiv = document.createElement('div');
+    chartDiv.style.flex = '1 1 45%';
+    chartDiv.style.minWidth = '400px';
+
+    const title = document.createElement('h5');
+    title.textContent = debt.descricao;
+    chartDiv.appendChild(title);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = '400';
+    canvas.height = '200';
+    chartDiv.appendChild(canvas);
+
+    chartsContainer.appendChild(chartDiv);
+
+    // Create individual chart
+    new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: debt.descricao,
+          data: debt.balances,
+          borderColor: getChartColor(colorIndex),
+          backgroundColor: getChartColor(colorIndex).replace('rgb', 'rgba').replace(')', ', 0.1)'),
+          tension: 0.4,
+          fill: false,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Meses'
+            }
+          },
+          y: {
+            beginAtZero: false,
+            title: {
+              display: true,
+              text: 'Saldo Remanescente (R$)'
+            },
+            ticks: {
+              callback: function(value) {
+                return 'R$ ' + value.toLocaleString();
+              }
             }
           }
-        }
-      },
-      plugins: {
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+              }
             }
+          },
+          legend: {
+            display: false // No legend needed since each chart is for one debt
           }
         }
       }
-    }
+    });
+
+    colorIndex++;
   });
 }
 

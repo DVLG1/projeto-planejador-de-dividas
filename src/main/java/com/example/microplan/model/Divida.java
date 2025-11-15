@@ -19,13 +19,13 @@ public class Divida {
 
     private String descricao;
 
-    @Column(precision = 19, scale = 2)
+    @Column(precision = 40, scale = 2)
     private BigDecimal saldoAtual;
 
     @Column(precision = 5, scale = 2)
     private BigDecimal taxaJurosAnual;
 
-    @Column(precision = 19, scale = 2)
+    @Column(precision = 40, scale = 2)
     private BigDecimal parcelaMinima;
 
     private Integer vencimentoMensal;

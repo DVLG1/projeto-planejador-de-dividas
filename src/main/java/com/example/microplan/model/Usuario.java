@@ -16,7 +16,7 @@ public class Usuario {
     @Column(unique = true)
     private String email;
 
-    @Column(precision = 19, scale = 2)
+    @Column(precision = 40, scale = 2)
     private BigDecimal rendaMensal;
 
     // Getters e Setters

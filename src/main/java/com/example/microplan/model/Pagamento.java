@@ -17,7 +17,7 @@ public class Pagamento {
 
     private LocalDateTime data;
 
-    @Column(precision = 19, scale = 2)
+    @Column(precision = 40, scale = 2)
     private BigDecimal valor;
 
     private String tipo;

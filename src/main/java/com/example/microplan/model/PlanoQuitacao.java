@@ -17,17 +17,17 @@ public class PlanoQuitacao {
 
     private String estrategia;
 
-    @Column(precision = 19, scale = 2)
+    @Column(precision = 40, scale = 2)
     private BigDecimal valorDisponivelMensal;
 
     private LocalDateTime dataCriacao;
 
     private Integer duracaoEstimadaMeses;
 
-    @Column(precision = 19, scale = 2)
+    @Column(precision = 40, scale = 2)
     private BigDecimal totalPagoEstimado;
 
-    @Column(precision = 19, scale = 2)
+    @Column(precision = 40, scale = 2)
     private BigDecimal custoTotalJuros;
 
     @Column(columnDefinition = "LONGTEXT")

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Microplan - Login</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Modal de Cadastro -->
+  <div id="signup-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Criar Nova Conta</h2>
+        <button class="modal-close-btn" onclick="closeSignupModal()" aria-label="Fechar modal">
+          <span>&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div id="signup-step1">
+          <div class="step-header">
+            <div class="step-indicator">
+              <span class="step-number active">1</span>
+              <span class="step-number">2</span>
+            </div>
+            <h3>Credenciais de Acesso</h3>
+            <p>Informe seu email e senha para começar</p>
+          </div>
+
+          <div class="form-group">
+            <label for="signup-email">Email</label>
+            <input id="signup-email" type="email" placeholder="seu.email@exemplo.com" required>
+          </div>
+
+          <div class="form-group">
+            <label for="signup-senha">Senha</label>
+            <input id="signup-senha" type="password" placeholder="Mínimo 6 caracteres" required>
+          </div>
+
+          <div class="form-group">
+            <label for="signup-senha-confirm">Confirmar Senha</label>
+            <input id="signup-senha-confirm" type="password" placeholder="Digite a senha novamente" required>
+          </div>
+
+          <button class="btn-primary full-width" onclick="validateCredentials()">
+            <span>Continuar</span>
+            <span class="arrow-right">→</span>
+          </button>
+        </div>
+
+        <div id="signup-step2" style="display: none;">
+          <div class="step-header">
+            <div class="step-indicator">
+              <span class="step-number completed">✓</span>
+              <span class="step-number active">2</span>
+            </div>
+            <h3>Informações Pessoais</h3>
+            <p>Quase lá! Complete seu perfil</p>
+          </div>
+
+          <div class="form-group">
+            <label for="signup-nome">Nome Completo</label>
+            <input id="signup-nome" type="text" placeholder="João Silva" required>
+          </div>
+
+          <div class="form-group">
+            <label for="signup-renda">Renda Mensal</label>
+            <div class="input-group">
+              <span class="input-prefix">R$</span>
+              <input id="signup-renda" type="number" step="0.01" placeholder="2.500,00" required>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-secondary" onclick="backToStep1()">
+              <span>← Voltar</span>
+            </button>
+            <button class="btn-primary" onclick="createAccount()">
+              <span>Criar Conta</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Screen -->
+  <div id="auth-screen" class="auth-form">
+    <h2>Login no Microplan</h2>
+    <div class="login-options">
+      <div id="user-login-form">
+        <input id="login-email" type="email" placeholder="Email">
+        <input id="login-senha" type="password" placeholder="Senha" style="margin-top:8px;">
+        <button id="btn-login" class="btn btn-secondary" style="width:100%; margin-top:12px;">Login</button>
+        <p style="text-align:center; margin-top:20px; font-size:13px; color:#666;">
+          Novo usuário? <a id="btn-signup-link" href="javascript:void(0)">Criar conta</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

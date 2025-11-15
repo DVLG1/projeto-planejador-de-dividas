@@ -8,6 +8,7 @@ import com.example.microplan.repository.DividaRepository;
 import com.example.microplan.repository.PlanoQuitacaoRepository;
 import com.example.microplan.repository.UsuarioRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -118,6 +119,9 @@ public class PlanoService {
             BigDecimal minimaPago = BigDecimal.ZERO;
             BigDecimal extraPago = BigDecimal.ZERO;
 
+            // Track payments per debt this month
+            Map<Long, BigDecimal> paymentsThisMonth = new HashMap<>();
+
             if (!orcamentoInsuficiente) {
                 // Caso orçamento >= soma das mínimas: paga mínimas e usa extra conforme estratégia
                 for (DividaSim s : sims) {
@@ -128,6 +132,7 @@ public class PlanoService {
                     totalPago = totalPago.add(minimo);
                     restante = restante.subtract(minimo);
                     minimaPago = minimaPago.add(minimo);
+                    paymentsThisMonth.put(s.id, paymentsThisMonth.getOrDefault(s.id, BigDecimal.ZERO).add(minimo));
                 }
 
                 List<DividaSim> ordenadas = sims.stream()
@@ -143,6 +148,7 @@ public class PlanoService {
                     totalPago = totalPago.add(extra);
                     restante = restante.subtract(extra);
                     extraPago = extraPago.add(extra);
+                    paymentsThisMonth.put(s.id, paymentsThisMonth.getOrDefault(s.id, BigDecimal.ZERO).add(extra));
                 }
             } else {
                 // Orçamento insuficiente: alocar 100% do restante para a dívida de maior custo futuro
@@ -166,10 +172,34 @@ public class PlanoService {
                     restante = restante.subtract(pagar);
                     // Quando insuficiente, consideramos tudo como "parcela" (já que não paga mínimo), mas para compatibilidade, colocamos em minimaPago
                     minimaPago = minimaPago.add(pagar);
+                    paymentsThisMonth.put(alvo.id, paymentsThisMonth.getOrDefault(alvo.id, BigDecimal.ZERO).add(pagar));
                 }
             }
 
             BigDecimal pagoNoMes = disponivel.subtract(restante);
+
+            ArrayNode dividasNode = objectMapper.createArrayNode();
+            for (DividaSim s : sims) {
+                ObjectNode dNode = objectMapper.createObjectNode();
+                dNode.put("id", s.id);
+                dNode.put("descricao", s.descricao);
+                dNode.put("saldo", s.saldo.doubleValue());
+                dividasNode.add(dNode);
+            }
+            mesNode.set("dividas", dividasNode);
+
+            ArrayNode pagamentosNode = objectMapper.createArrayNode();
+            for (Map.Entry<Long, BigDecimal> entry : paymentsThisMonth.entrySet()) {
+                Long id = entry.getKey();
+                BigDecimal pago = entry.getValue();
+                String descricao = sims.stream().filter(s -> s.id.equals(id)).findFirst().map(s -> s.descricao).orElse("Desconhecido");
+                ObjectNode pNode = objectMapper.createObjectNode();
+                pNode.put("id", id);
+                pNode.put("descricao", descricao);
+                pNode.put("pago", pago.doubleValue());
+                pagamentosNode.add(pNode);
+            }
+            mesNode.set("pagamentos", pagamentosNode);
 
             ObjectNode resumo = objectMapper.createObjectNode();
             resumo.put("jurosDoMes", jurosMes.doubleValue());

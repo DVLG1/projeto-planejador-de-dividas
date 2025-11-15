@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Microplan - Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- App Container -->
+  <div id="main-screen">
+    <nav class="app-navbar">
+      <div class="nav-brand">
+        <span class="brand-symbol-small">💰</span>
+        <span class="brand-text">Microplan</span>
+      </div>
+      <div class="nav-actions">
+        <span id="user-info"></span>
+        <button id="logout-btn" class="btn btn-secondary">Sair</button>
+      </div>
+    </nav>
+
+    <div class="app-layout">
+      <aside class="app-sidebar">
+        <nav class="sidebar-nav" id="nav-menu">
+          <!-- Navegação será gerada dinamicamente -->
+        </nav>
+      </aside>
+
+      <main class="app-content">
+        <header class="app-header">
+          <h2 id="page-title">Dashboard</h2>
+          <div id="header-actions"></div>
+        </header>
+
+        <div id="page" class="page-content">
+          <!-- Conteúdo das páginas será inserido aqui -->
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
