@@ -1,11 +1,85 @@
 const API_BASE = 'http://localhost:8080/api';
 
-const pageTitle = document.getElementById('page-title');
-const page = document.getElementById('page');
+// Landing page functions
+function showApp() {
+  document.querySelector('header').style.display = 'none';
+  document.querySelector('.features-section').style.display = 'none';
+  document.querySelector('.how-it-works').style.display = 'none';
+  const authScreen = document.getElementById('auth-screen');
+  authScreen.style.display = 'flex';
+}
 
-document.querySelectorAll('.sidebar nav button').forEach(btn => {
-  btn.addEventListener('click', () => navigate(btn.dataset.route));
-});
+function scrollToAbout() {
+  document.getElementById('about').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showSignupModal() {
+  document.getElementById('signup-modal').style.display = 'flex';
+}
+
+function closeSignupModal() {
+  document.getElementById('signup-modal').style.display = 'none';
+}
+
+function validateCredentials() {
+  const email = document.getElementById('signup-email').value.trim();
+  const senha = document.getElementById('signup-senha').value;
+  const senhaConfirm = document.getElementById('signup-senha-confirm').value;
+
+  if (!email) return alert('Informe um email válido');
+  if (!senha) return alert('Informe uma senha');
+  if (senha.length < 6) return alert('Senha deve ter no mínimo 6 caracteres');
+  if (senha !== senhaConfirm) return alert('As senhas não coincidem');
+
+  // Hide step 1, show step 2
+  document.getElementById('signup-step1').style.display = 'none';
+  document.getElementById('signup-step2').style.display = 'block';
+}
+
+function backToStep1() {
+  document.getElementById('signup-step2').style.display = 'none';
+  document.getElementById('signup-step1').style.display = 'block';
+  // Clear form fields
+  document.getElementById('signup-email').value = '';
+  document.getElementById('signup-senha').value = '';
+  document.getElementById('signup-senha-confirm').value = '';
+}
+
+async function createAccount() {
+  const email = document.getElementById('signup-email').value;
+  const senha = document.getElementById('signup-senha').value;
+  const nome = document.getElementById('signup-nome').value.trim();
+  const rendaMensal = parseFloat(document.getElementById('signup-renda').value);
+
+  if (!nome) return alert('Informe seu nome');
+  if (!rendaMensal || rendaMensal <= 0) return alert('Informe uma renda mensal válida');
+
+  try {
+    const res = await fetch(`${API_BASE}/usuarios`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, rendaMensal })
+    });
+
+    const json = await res.json();
+    if (!res.ok) return alert(json.error || 'Erro ao criar conta');
+
+    // Store credentials locally
+    localStorage.setItem(`user_${email}`, JSON.stringify({ email, senha }));
+
+    alert('Conta criada com sucesso! Faça login com seu email.');
+    closeSignupModal();
+    document.getElementById('auth-screen').style.display = 'flex';
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+// App functionality
+let currentUser = null;
+let currentMode = null;
+
+let authScreen, mainScreen, pageTitle, page, navMenu, userInfo, logoutBtn;
 
 function navigate(route){
   page.innerHTML = '';
@@ -215,7 +289,234 @@ function createTable(headers, rows){
   return table;
 }
 
-function createLoading(){ const d = document.createElement('div'); d.className='notice'; d.textContent='Carregando...'; return d }
+// Add event listeners after DOM loads
+document.addEventListener('DOMContentLoaded', function() {
+  // Landing page event listeners
+  const signupLink = document.getElementById('btn-signup-link');
+  if (signupLink) {
+    signupLink.addEventListener('click', showSignupModal);
+  }
 
-// inicial
-navigate('home');
+  // App functionality event listeners
+  const btnDev = document.getElementById('btn-dev');
+  const btnLogin = document.getElementById('btn-login');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  if (btnDev) btnDev.addEventListener('click', () => {
+    currentMode = 'dev';
+    currentUser = { id: 'admin', nome: 'Administrador (Dev)', email: 'dev@local' };
+    showMainScreen();
+  });
+
+  if (btnLogin) btnLogin.addEventListener('click', async () => {
+    await loginUser();
+  });
+
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+});
+
+// Login functions
+async function loginUser() {
+  const email = document.getElementById('login-email').value;
+  const senha = document.getElementById('login-senha').value;
+
+  if (!email || !senha) {
+    alert('Preencha email e senha');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/usuarios`);
+    const usuarios = await res.json();
+
+    if (!Array.isArray(usuarios)) {
+      alert('Erro ao buscar usuários');
+      return;
+    }
+
+    const user = usuarios.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      alert('Usuário não encontrado');
+      return;
+    }
+
+    const stored = localStorage.getItem(`user_${email}`);
+    if (!stored || JSON.parse(stored).senha !== senha) {
+      alert('Credenciais incorretas');
+      return;
+    }
+
+    currentUser = user;
+    currentMode = 'user';
+    showMainScreen();
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+function logout() {
+  currentUser = null;
+  currentMode = null;
+  document.getElementById('main-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+}
+
+function showMainScreen() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'block';
+
+  // Initialize elements
+  authScreen = document.getElementById('auth-screen');
+  mainScreen = document.getElementById('main-screen');
+  pageTitle = document.getElementById('page-title');
+  page = document.getElementById('page');
+  navMenu = document.getElementById('nav-menu');
+  userInfo = document.getElementById('user-info');
+  logoutBtn = document.getElementById('logout-btn');
+
+  // Setup user info
+  if (userInfo) {
+    userInfo.innerHTML = `<strong>${currentUser.nome}</strong><br><small>${currentUser.email}</small>`;
+  }
+
+  if (currentMode === 'dev') {
+    setupDevMenu();
+  } else {
+    setupUserMenu();
+  }
+
+  navigate('home');
+}
+
+function setupDevMenu() {
+  navMenu.innerHTML = `
+    <button onclick="navigate('home')">Menu</button>
+    <button onclick="navigate('usuarios')">Usuários</button>
+    <button onclick="navigate('credores')">Credores</button>
+    <button onclick="navigate('dividas')">Dívidas</button>
+    <button onclick="navigate('pagamentos')">Pagamentos</button>
+    <button onclick="navigate('plano')">Gerar Plano</button>
+  `;
+}
+
+function setupUserMenu() {
+  navMenu.innerHTML = `
+    <button onclick="navigate('home')">Dashboard</button>
+    <button onclick="navigate('minhas-dividas')">Minhas Dívidas</button>
+    <button onclick="navigate('plano-usuario')">Meu Plano</button>
+  `;
+}
+
+function navigate(route) {
+  page.innerHTML = '';
+
+  if (currentMode === 'dev') {
+    pageTitle.textContent = ({home:'Menu Dev',usuarios:'Usuários',credores:'Credores',dividas:'Dívidas',pagamentos:'Pagamentos',plano:'Gerar Plano'}[route] || 'Menu');
+    if (route === 'home') return renderDevHome();
+    if (route === 'usuarios') return renderUsuarios();
+    if (route === 'credores') return renderCredores();
+    if (route === 'dividas') return renderDividas();
+    if (route === 'pagamentos') return renderPagamentos();
+    if (route === 'plano') return renderGerarPlano();
+  } else {
+    pageTitle.textContent = ({home:'Dashboard','minhas-dividas':'Minhas Dívidas','plano-usuario':'Meu Plano'}[route] || 'Dashboard');
+    if (route === 'home') return renderUserDashboard();
+    if (route === 'minhas-dividas') return renderMinhasDividas();
+    if (route === 'plano-usuario') return renderMeuPlano();
+  }
+}
+
+function renderDevHome() {
+  page.innerHTML = `
+    <div class="notice">Bem-vindo ao modo Dev (Admin) do Microplan. Use o menu à esquerda para gerenciar todos os dados.</div>
+    <div class="small">Modo: DESENVOLVIMENTO - Acesso total a todos os recursos.</div>
+  `;
+}
+
+function renderUserDashboard() {
+  page.innerHTML = '<div class="notice">Carregando...</div>';
+  loadUserDashboard();
+}
+
+async function loadUserDashboard() {
+  try {
+    const divRes = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+    const dividas = await divRes.json();
+
+    const arr = Array.isArray(dividas) ? dividas : [];
+    const totalSaldo = arr.reduce((s, d) => s + (parseFloat(d.saldoAtual) || 0), 0);
+
+    const userCard = `
+      <div class="dashboard-section">
+        <h3>Informações Pessoais</h3>
+        <p><strong>Nome:</strong> ${currentUser.nome}</p>
+        <p><strong>Email:</strong> ${currentUser.email}</p>
+        <p><strong>Renda Mensal:</strong> R$ ${currentUser.rendaMensal || 'N/A'}</p>
+      </div>
+    `;
+
+    const debtsCard = `
+      <div class="dashboard-section">
+        <h3>Resumo Dívidas</h3>
+        <p><strong>Total de Dívidas:</strong> ${arr.length}</p>
+        <p><strong>Saldo Total:</strong> R$ ${totalSaldo.toFixed(2)}</p>
+        ${arr.length > 0 ? createTable(['Credor', 'Descrição', 'Saldo', 'Juros%'], arr.map(d => [d.credorNome, d.descricao, d.saldoAtual, d.taxaJurosAnual])).outerHTML : ''}
+      </div>
+    `;
+
+    page.innerHTML = userCard + debtsCard;
+  } catch (e) {
+    page.innerHTML = `<div class="notice">Erro: ${e.message}</div>`;
+  }
+}
+
+function createLoading() {
+  const d = document.createElement('div');
+  d.className='notice';
+  d.textContent='Carregando...';
+  return d;
+}
+
+// Fallback initialization (in case DOM is already loaded)
+if (document.readyState === 'loading') {
+  // DOM not loaded yet, event listener already added above
+} else {
+  // DOM already loaded
+  const signupLink = document.getElementById('btn-signup-link');
+  if (signupLink) {
+    signupLink.addEventListener('click', showSignupModal);
+  }
+}
+
+// Keep existing render functions for compatibility
+async function renderMinhasDividas(){
+  page.appendChild(createLoading());
+  try {
+    const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+    const dividas = await res.json();
+
+    page.innerHTML = '';
+
+    const btnAdd = document.createElement('button');
+    btnAdd.className='btn btn-primary';
+    btnAdd.textContent='Adicionar Dívida';
+    btnAdd.style.marginBottom = '15px';
+    btnAdd.onclick = showAddDividaForm;
+    page.appendChild(btnAdd);
+
+    const arr = Array.isArray(dividas) ? dividas : [];
+    if (arr.length === 0) {
+      page.appendChild(document.createElement('div')).innerHTML = '<div class="notice">Nenhuma dívida registrada. Clique em "Adicionar Dívida" para começar.</div>';
+    } else {
+      page.appendChild(createTable(['Credor', 'Descrição', 'Saldo', 'Juros%', 'Parcela', 'Vencimento'],
+        arr.map(d => [d.credorNome, d.descricao, d.saldoAtual, d.taxaJurosAnual, d.parcelaMinima, d.vencimentoMensal])));
+    }
+  } catch (e) {
+    page.innerHTML = `<div class="notice">Erro: ${e.message}</div>`;
+  }
+}
+
+// This is a placeholder - the actual renderMeuPlano is in the static app.js
+function renderMeuPlano() {
+  page.innerHTML = '<div class="notice">Funcionalidade de plano disponível no aplicativo principal.</div>';
+}

@@ -3,28 +3,215 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Microplan - Frontend</title>
+  <title>Microplan - Planejamento Financeiro</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <aside class="sidebar">
-      <h2>Microplan</h2>
-      <nav>
-        <button data-route="home">Menu</button>
-        <button data-route="usuarios">Usuários</button>
-        <button data-route="credores">Credores</button>
-        <button data-route="dividas">Dívidas</button>
-        <button data-route="pagamentos">Pagamentos</button>
-        <button data-route="plano">Gerar Plano</button>
-      </nav>
-    </aside>
-    <main class="content">
-      <header>
-        <h1 id="page-title">Menu</h1>
-      </header>
-      <section id="page"></section>
-    </main>
+  <!-- Landing Page -->
+  <header class="hero-header">
+    <div class="hero-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <span class="brand-symbol">💰</span>
+        </div>
+        <h1 class="brand-title">Microplan</h1>
+        <p class="brand-subtitle">Planejamento inteligente de quitação de dívidas</p>
+      </div>
+
+      <div class="hero-content">
+        <h2 class="hero-title">Transforme sua Liberdade Financeira</h2>
+        <p class="hero-description">
+          Crie e visualize planos personalizados para quitar suas dívidas com estratégias de Avalanche e Snowball.
+          Acompanhe seu progresso com gráficos interativos e alcance a independência financeira mais rápido.
+        </p>
+
+        <div class="hero-features">
+          <div class="feature-item">
+            <div class="feature-icon">📊</div>
+            <span>Análise Detalhada</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">🎯</div>
+            <span>Objetivos Claros</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">💡</div>
+            <span>Estratégias Testadas</span>
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          <button class="btn-primary" onclick="showApp()">
+            <span>🚀 Acessar Aplicativo</span>
+          </button>
+          <button class="btn-secondary" onclick="scrollToAbout()">
+            <span>ℹ️ Saiba Mais</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="dashboard-preview">
+          <div class="preview-header">
+            <span>Microplan Dashboard</span>
+          </div>
+          <div class="preview-charts">
+            <div class="chart-placeholder"></div>
+            <div class="chart-placeholder small"></div>
+          </div>
+          <div class="preview-stats">
+            <div class="stat">
+              <span class="stat-value">R$ 45.500</span>
+              <span class="stat-label">Total Pago</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">18 meses</span>
+              <span class="stat-label">Duração</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="features-section" id="about">
+    <div class="container">
+      <h2 class="section-title">Por que escolher o Microplan?</h2>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-card-icon">📈</div>
+          <h3>Graficos Interactivos</h3>
+          <p>Visualize a evolução das suas dívidas com gráficos claros e detalhados.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-icon">⚡</div>
+          <h3>Estratégias Otimizadas</h3>
+          <p>Utilize métodos comprovados como Avalanche e Snowball para acelerar sua quitação.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-icon">🎯</div>
+          <h3>Planejamento Personalizado</h3>
+          <p>Calcule planos baseados nas suas dívidas reais e renda disponível.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-icon">📱</div>
+          <h3>Interface Moderna</h3>
+          <p>Navegação intuitiva e design responsivo para desktop e mobile.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="how-it-works">
+    <div class="container">
+      <h2 class="section-title">Como Funciona</h2>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h3>Cadastre-se</h3>
+          <p>Crie sua conta gratuitamente e configure seu perfil financeiro.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <h3>Registre Dívidas</h3>
+          <p>Adicione todas as suas dívidas com valores, taxas e parcelas mínimas.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <h3>Gerar Plano</h3>
+          <p>Ecolha sua estratégia e gere um plano personalizado e visualizado.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">4</div>
+          <h3>Acompanhe</h3>
+          <p>Monitore seu progresso mensal e ajuste conforme necessário.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Aplicação Principal (Escondida por padrão) -->
+  <div id="auth-screen" style="display: none;">
+    <div class="auth-form">
+      <h2>Login no Microplan</h2>
+      <div class="login-options">
+        <p style="text-align:center; margin-bottom:20px;">
+          <button id="btn-dev" class="btn btn-primary">Modo Dev (Admin)</button>
+        </p>
+        <p style="text-align:center; color:#999; margin:10px 0;">OU</p>
+        <div id="user-login-form">
+          <input id="login-email" type="email" placeholder="Email">
+          <input id="login-senha" type="password" placeholder="Senha" style="margin-top:8px;">
+          <button id="btn-login" class="btn btn-secondary" style="width:100%; margin-top:12px;">Login</button>
+          <p style="text-align:center; margin-top:20px; font-size:13px; color:#666;">
+            Novo usuário? <a id="btn-signup-link" href="javascript:void(0)">Criar conta</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Cadastro -->
+  <div id="signup-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close-modal" onclick="closeSignupModal()">&times;</span>
+      <h2>Criar Conta</h2>
+      <div id="signup-step1">
+        <h3>Passo 1 - Credenciais</h3>
+        <input id="signup-email" type="email" placeholder="Email">
+        <input id="signup-senha" type="password" placeholder="Senha" style="margin-top:8px;">
+        <input id="signup-senha-confirm" type="password" placeholder="Confirmar senha" style="margin-top:8px;">
+        <button class="btn btn-primary" style="width:100%; margin-top:12px;" onclick="validateCredentials()">Próximo</button>
+      </div>
+      <div id="signup-step2" style="display: none;">
+        <h3>Passo 2 - Dados Pessoais</h3>
+        <input id="signup-nome" type="text" placeholder="Nome completo">
+        <input id="signup-renda" type="number" step="0.01" placeholder="Renda Mensal (R$)" style="margin-top:8px;">
+        <button class="btn btn-primary" style="margin-top:12px;margin-right:8px;" onclick="createAccount()">Criar Conta</button>
+        <button class="btn btn-secondary" onclick="backToStep1()">Voltar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Container (Escondido) -->
+  <div id="main-screen" style="display: none;">
+    <nav class="app-navbar">
+      <div class="nav-brand">
+        <span class="brand-symbol-small">💰</span>
+        <span class="brand-text">Microplan</span>
+      </div>
+      <div class="nav-actions">
+        <span id="user-info"></span>
+        <button id="logout-btn" class="btn btn-secondary">Sair</button>
+      </div>
+    </nav>
+
+    <div class="app-layout">
+      <aside class="app-sidebar">
+        <nav class="sidebar-nav" id="nav-menu">
+          <!-- Navegação será gerada dinamicamente -->
+        </nav>
+      </aside>
+
+      <main class="app-content">
+        <header class="app-header">
+          <h2 id="page-title">Dashboard</h2>
+          <div id="header-actions"></div>
+        </header>
+
+        <div id="page" class="page-content">
+          <!-- Conteúdo das páginas será inserido aqui -->
+        </div>
+      </main>
+    </div>
   </div>
 
   <script src="app.js"></script>

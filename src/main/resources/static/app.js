@@ -1,5 +1,79 @@
 const API_BASE = 'http://localhost:8080/api';
 
+// Landing page functions
+function showApp() {
+  document.querySelector('header').style.display = 'none';
+  document.querySelector('.features-section').style.display = 'none';
+  document.querySelector('.how-it-works').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+}
+
+function scrollToAbout() {
+  document.getElementById('about').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showSignupModal() {
+  document.getElementById('signup-modal').style.display = 'flex';
+}
+
+function closeSignupModal() {
+  document.getElementById('signup-modal').style.display = 'none';
+}
+
+function validateCredentials() {
+  const email = document.getElementById('signup-email').value.trim();
+  const senha = document.getElementById('signup-senha').value;
+  const senhaConfirm = document.getElementById('signup-senha-confirm').value;
+
+  if (!email) return alert('Informe um email válido');
+  if (!senha) return alert('Informe uma senha');
+  if (senha.length < 6) return alert('Senha deve ter no mínimo 6 caracteres');
+  if (senha !== senhaConfirm) return alert('As senhas não coincidem');
+
+  // Hide step 1, show step 2
+  document.getElementById('signup-step1').style.display = 'none';
+  document.getElementById('signup-step2').style.display = 'block';
+}
+
+function backToStep1() {
+  document.getElementById('signup-step2').style.display = 'none';
+  document.getElementById('signup-step1').style.display = 'block';
+  // Clear form fields
+  document.getElementById('signup-email').value = '';
+  document.getElementById('signup-senha').value = '';
+  document.getElementById('signup-senha-confirm').value = '';
+}
+
+async function createAccount() {
+  const email = document.getElementById('signup-email').value;
+  const senha = document.getElementById('signup-senha').value;
+  const nome = document.getElementById('signup-nome').value.trim();
+  const rendaMensal = parseFloat(document.getElementById('signup-renda').value);
+
+  if (!nome) return alert('Informe seu nome');
+  if (!rendaMensal || rendaMensal <= 0) return alert('Informe uma renda mensal válida');
+
+  try {
+    const res = await fetch(`${API_BASE}/usuarios`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, rendaMensal })
+    });
+
+    const json = await res.json();
+    if (!res.ok) return alert(json.error || 'Erro ao criar conta');
+
+    // Store credentials locally
+    localStorage.setItem(`user_${email}`, JSON.stringify({ email, senha }));
+
+    alert('Conta criada com sucesso! Faça login com seu email.');
+    closeSignupModal();
+    document.getElementById('auth-screen').style.display = 'flex';
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
 let currentUser = null;
 let currentMode = null; // 'dev' ou 'user'
 
@@ -218,8 +292,11 @@ function buildUserMenu() {
 }
 
 function navigate(route) {
+  // Ensure any modal is closed before navigating
+  closeSignupModal();
+
   page.innerHTML = '';
-  
+
   if (currentMode === 'dev') {
     pageTitle.textContent = ({home:'Menu Dev',usuarios:'Usuários',credores:'Credores',dividas:'Dívidas',pagamentos:'Pagamentos',plano:'Gerar Plano'}[route] || 'Menu');
     if (route === 'home') return renderDevHome();
@@ -1073,18 +1150,29 @@ function drawMultiSeriesChart(canvas, series, opts={}){
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0,0,W,H);
-  const m = { top: 28, right: 16, bottom: 44, left: 64 };
+  const m = { top: 40, right: 20, bottom: 60, left: 70 };
   const plotW = W - m.left - m.right;
   const plotH = H - m.top - m.bottom;
-  if (!series || series.length === 0) { ctx.fillStyle='#555'; ctx.fillText('Sem dados', m.left, m.top+10); return; }
+  if (!series || series.length === 0) {
+    ctx.fillStyle='#666';
+    ctx.font='bold 16px Inter, sans-serif';
+    ctx.fillText('Sem dados para exibir', m.left + plotW/2 - 80, m.top + plotH/2);
+    return;
+  }
 
   // compute domains
   let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
   series.forEach(s => (s.points||[]).forEach(p => { if(p){ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); }}));
-  if (!isFinite(minX) || !isFinite(maxX)) { ctx.fillText('Sem dados', m.left, m.top+10); return; }
+  if (!isFinite(minX) || !isFinite(maxX)) {
+    ctx.fillStyle='#666';
+    ctx.font='bold 16px Inter, sans-serif';
+    ctx.fillText('Dados inválidos', m.left + plotW/2 - 60, m.top + plotH/2);
+    return;
+  }
+
   // ensure integer X domain (months)
   minX = Math.floor(minX); maxX = Math.ceil(maxX);
-  const padY = (maxY - minY) * 0.12 || Math.max(1, Math.abs(maxY)*0.05);
+  const padY = (maxY - minY) * 0.15 || Math.max(100, Math.abs(maxY)*0.1);
   const y0 = Math.max(0, minY - padY);
   const y1 = maxY + padY;
   const xToPx = x => m.left + (plotW * (x - minX) / ((maxX - minX) || 1));
@@ -1093,55 +1181,113 @@ function drawMultiSeriesChart(canvas, series, opts={}){
   // helper to render base (axes, grid, series)
   function renderBase(){
     ctx.clearRect(0,0,W,H);
-    // background
-    ctx.fillStyle = '#fff'; ctx.fillRect(m.left, m.top, plotW, plotH);
-    // grid vertical
-    ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1;
-    const xticks = Math.min(12, Math.max(4, maxX - minX));
-    for (let i=0;i<=xticks;i++){ const x = minX + Math.round(i*(maxX-minX)/(xticks||1)); const px=xToPx(x); ctx.beginPath(); ctx.moveTo(px, m.top); ctx.lineTo(px, m.top+plotH); ctx.stroke(); }
-    // grid horizontal
-    const yticks = 5;
-    for (let i=0;i<=yticks;i++){ const y = y0 + i*(y1-y0)/(yticks||1); const py = yToPx(y); ctx.beginPath(); ctx.moveTo(m.left,py); ctx.lineTo(m.left+plotW,py); ctx.stroke(); }
 
-    // axes
-    ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 1;
+    // background with subtle gradient
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, H);
+    bgGradient.addColorStop(0, '#ffffff');
+    bgGradient.addColorStop(1, '#f8fafc');
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(m.left, m.top, plotW, plotH);
+
+    // grid vertical - subtle
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1;
+    const xticks = Math.min(10, Math.max(4, maxX - minX));
+    for (let i=1;i<xticks;i++){ const x = minX + (i*(maxX-minX)/xticks); const px=xToPx(x); ctx.beginPath(); ctx.moveTo(px, m.top); ctx.lineTo(px, m.top+plotH); ctx.stroke(); }
+
+    // grid horizontal - subtle
+    const yticks = 6;
+    for (let i=1;i<yticks;i++){ const y = y0 + i*(y1-y0)/yticks; const py = yToPx(y); ctx.beginPath(); ctx.moveTo(m.left,py); ctx.lineTo(m.left+plotW,py); ctx.stroke(); }
+
+    // axes with better styling
+    ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(m.left, m.top+plotH); ctx.lineTo(m.left+plotW, m.top+plotH); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(m.left, m.top); ctx.lineTo(m.left, m.top+plotH); ctx.stroke();
 
-    // ticks labels
-    ctx.fillStyle='#6b7280'; ctx.font='12px Inter, sans-serif';
+    // ticks labels with better typography
+    ctx.fillStyle='#475569'; ctx.font='bold 12px Inter, sans-serif';
     for (let i=0;i<=xticks;i++){ const x = minX + Math.round(i*(maxX-minX)/(xticks||1)); const px = xToPx(x); ctx.fillText(String(x), px-6, m.top+plotH+22); }
-    for (let i=0;i<=yticks;i++){ const y = y0 + (i*(y1-y0)/(yticks||1)); const py = yToPx(y); ctx.fillText('R$ '+Number(y).toFixed(0), 8, py+4); }
+    for (let i=0;i<=yticks;i++){ const y = y0 + (i*(y1-y0)/yticks); const py = yToPx(y); ctx.fillText('R$ '+Number(y).toFixed(0), 8, py+4); }
 
-    // draw series
+    // draw series with smooth curves and better styling
     series.forEach(s => {
       const pts = (s.points||[]).map(p => ({ x: Number(p.x)||0, y: Number(p.y)||0 }));
-      ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = s.color || '#2b7cff';
-      if (s.dashed) ctx.setLineDash([6,4]); else ctx.setLineDash([]);
-      pts.forEach((p,i)=>{ const px=xToPx(p.x), py=yToPx(p.y); if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); });
-      ctx.stroke(); ctx.setLineDash([]);
-      // points
-      ctx.fillStyle = s.color || '#2b7cff';
-      pts.forEach(p=>{ const px=xToPx(p.x), py=yToPx(p.y); ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill(); });
+
+      if (pts.length > 0) {
+        // create smooth curved line
+        ctx.beginPath();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = s.color || '#3B82F6';
+        ctx.setLineDash(s.dashed ? [8,4] : []);
+
+        // smooth curve using quadratic curves
+        ctx.moveTo(xToPx(pts[0].x), yToPx(pts[0].y));
+
+        for (let i = 1; i < pts.length - 1; i++) {
+          const xc = (xToPx(pts[i].x) + xToPx(pts[i + 1].x)) / 2;
+          const yc = (yToPx(pts[i].y) + yToPx(pts[i + 1].y)) / 2;
+          ctx.quadraticCurveTo(xToPx(pts[i].x), yToPx(pts[i].y), xc, yc);
+        }
+
+        if (pts.length > 1) {
+          ctx.quadraticCurveTo(xToPx(pts[pts.length - 2].x), yToPx(pts[pts.length - 2].y),
+                            xToPx(pts[pts.length - 1].x), yToPx(pts[pts.length - 1].y));
+        }
+
+        ctx.stroke(); ctx.setLineDash([]);
+
+        // points with shadow effect
+        ctx.shadowColor = 'rgba(0,0,0,0.2)';
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = s.color || '#3B82F6';
+        pts.forEach((p,i) => {
+          const px = xToPx(p.x), py = yToPx(p.y);
+          // white inner circle for better contrast
+          ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill();
+          ctx.fillStyle = s.color || '#3B82F6'; ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.shadowBlur = 0;
+      }
     });
 
-    // title
-    if (opts.title){ ctx.fillStyle='#111'; ctx.font='bold 14px Inter, sans-serif'; ctx.fillText(opts.title, m.left, m.top - 8); }
+    // title with better styling
+    if (opts.title){
+      ctx.fillStyle='#0F172A'; ctx.font='bold 16px Inter, sans-serif';
+      ctx.fillText(opts.title, m.left, 24);
+    }
 
-    // legend (draw at bottom)
-    const legendX = m.left; const legendY = m.top + plotH + 28;
-    let lx = legendX; series.forEach(s => {
-      // swatch
-      ctx.fillStyle = s.color || '#2b7cff'; ctx.fillRect(lx, legendY-10, 18, 6);
-      ctx.fillStyle = '#374151'; ctx.font='12px Inter, sans-serif'; ctx.fillText(' ' + (s.name||''), lx + 22, legendY-2);
-      lx += 24 + ctx.measureText(s.name||'').width + 18;
-    });
+    // better legend (centered at bottom)
+    if (series.length > 0) {
+      const legendY = m.top + plotH + 45;
+      let totalWidth = 0;
+      series.forEach(s => {
+        totalWidth += 24 + ctx.measureText(s.name||'').width;
+      });
+
+      let lx = m.left + (plotW - totalWidth) / 2;
+      series.forEach(s => {
+        // background circle for swatch
+        ctx.fillStyle = 'white';
+        ctx.shadowColor = 'rgba(0,0,0,0.1)'; ctx.shadowBlur = 3;
+        ctx.beginPath(); ctx.arc(lx + 8, legendY-6, 8, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // colored swatch
+        ctx.fillStyle = s.color || '#3B82F6';
+        ctx.beginPath(); ctx.arc(lx + 8, legendY-6, 6, 0, Math.PI*2); ctx.fill();
+
+        // text
+        ctx.fillStyle = '#334155'; ctx.font='500 12px Inter, sans-serif';
+        ctx.fillText(' ' + (s.name||''), lx + 20, legendY);
+
+        lx += 28 + ctx.measureText(s.name||'').width;
+      });
+    }
   }
 
   // initial render
   renderBase();
 
-  // mouse interactions: show vertical guide and tooltip
+  // enhanced mouse interactions
   canvas.onmousemove = (ev) => {
     renderBase();
     const rect = canvas.getBoundingClientRect();
@@ -1157,26 +1303,76 @@ function drawMultiSeriesChart(canvas, series, opts={}){
       if (bestPt) hoverPoints.push({ name: s.name, color: s.color, pt: bestPt });
     });
     if (hoverPoints.length === 0) return;
-    const rx = xToPx(ix);
-    // vertical guide
-    ctx.strokeStyle = 'rgba(107,114,128,0.6)'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(rx, m.top); ctx.lineTo(rx, m.top+plotH); ctx.stroke(); ctx.setLineDash([]);
 
-    const lines = [`Mês: ${ix}`].concat(hoverPoints.map(h => `${h.name}: R$ ${Number(h.pt.y).toFixed(2)}`));
-    ctx.font = '12px Inter, sans-serif';
-    const padding = 8;
+    const rx = xToPx(ix);
+    // enhanced vertical guide
+    ctx.strokeStyle = 'rgba(15,23,42,0.3)'; ctx.setLineDash([2,2]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(rx, m.top); ctx.lineTo(rx, m.top+plotH); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // enhanced tooltip
+    const lines = [`📅 Mês: ${ix}`].concat(hoverPoints.map(h => `💰 ${h.name}: R$ ${Number(h.pt.y).toFixed(2)}`));
+    ctx.font = 'bold 12px Inter, sans-serif';
+    const padding = 12;
     const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + padding*2;
-    const th = lines.length * 16 + padding;
-    let tx = rx + 10; let ty = my - th/2;
-    if (tx + tw > W - 8) tx = rx - tw - 10; if (ty < 4) ty = 4; if (ty + th > H - 4) ty = H - th - 4;
-    ctx.fillStyle = 'rgba(255,255,255,0.98)'; ctx.strokeStyle = '#e6e6e6'; ctx.lineWidth = 1; ctx.fillRect(tx, ty, tw, th); ctx.strokeRect(tx, ty, tw, th);
-    ctx.fillStyle = '#111';
-    lines.forEach((l,i)=> ctx.fillText(l, tx + padding, ty + padding + (i*16)));
+    const th = lines.length * 18 + padding;
+    let tx = rx + 15; let ty = my - th/2;
+    if (tx + tw > W - 12) tx = rx - tw - 15;
+    if (ty < 8) ty = 8;
+    if (ty + th > H - 8) ty = H - th - 8;
+
+    // tooltip background with shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 8;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.strokeStyle = '#E2E8F0'; ctx.lineWidth = 1;
+    ctx.fillRect(tx, ty, tw, th); ctx.strokeRect(tx, ty, tw, th);
+    ctx.shadowBlur = 0;
+
+    // tooltip content
+    ctx.fillStyle = '#0F172A';
+    lines.forEach((l,i)=> ctx.fillText(l, tx + padding, ty + padding + (i*18) + 4));
   };
+
   canvas.onmouseleave = () => { renderBase(); };
 }
 
-// Initialize on DOM ready
+/* LANDING PAGE EVENT LISTENERS */
 document.addEventListener('DOMContentLoaded', function() {
-  initializeElements();
-  showLoginScreen();
+  // Check if we're on the landing page (has hero header) or app (has auth-screen)
+  const hasLandingPage = document.querySelector('header.hero-header');
+  const hasAuthScreen = document.getElementById('auth-screen');
+
+  if (hasLandingPage && hasAuthScreen) {
+    // Landing page with integrated app - setup both
+    const btnDev = document.getElementById('btn-dev');
+    const btnLogin = document.getElementById('btn-login');
+    const logoutBtn = document.getElementById('logout-btn');
+    const signupLink = document.getElementById('btn-signup-link');
+
+    // Setup landing page event listeners
+    if (signupLink) {
+      signupLink.addEventListener('click', showSignupModal);
+    }
+
+    // Setup app functionality
+    initializeElements();
+
+    if (btnDev) btnDev.addEventListener('click', () => {
+      currentMode = 'dev';
+      currentUser = { id: 'admin', nome: 'Administrador (Dev)', email: 'dev@local' };
+      showMainScreen();
+    });
+
+    if (btnLogin) btnLogin.addEventListener('click', loginUser);
+
+    if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
+    // Start with landing page visible
+  } else if (hasAuthScreen) {
+    // Pure app mode - start with login
+    initializeElements();
+    showLoginScreen();
+  }
+  // If only landing page, no JS interactions needed
 });
+
+// Keep existing functions for compatibility

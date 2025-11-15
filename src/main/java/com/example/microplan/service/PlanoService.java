@@ -143,7 +143,7 @@ public class PlanoService {
             } else {
                 // Orçamento insuficiente: alocar 100% do restante para a dívida de maior custo futuro
                 // Critério: maior taxaAnual (aproximação do maior prejuízo no longo prazo)
-o                // Escolhe a dívida que gera o maior prejuízo mensal estimado (saldo * taxa mensal)
+                // Escolhe a dívida que gera o maior prejuízo mensal estimado (saldo * taxa mensal)
                 Optional<DividaSim> alvoOpt = sims.stream()
                     .filter(s -> s.saldo.compareTo(BigDecimal.ZERO) > 0)
                     .max(Comparator.comparing((DividaSim s) -> {
