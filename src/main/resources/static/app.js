@@ -873,21 +873,25 @@ function renderPlanoTable(plano, detalhes) {
 
   // Detailed table
   if (Array.isArray(detalhes) && detalhes.length > 0) {
-    const headers = ['Mês', 'Saldo Inicial', 'Juros', 'Amortização', 'Pagamento', 'Saldo Final'];
+    const headers = ['Mês', 'Saldo Inicial', 'Juros', 'Parcela', 'Pagamento Extra', 'Pagamento Total', 'Saldo Final'];
+    let cumulativeTotal = 0;
     const rows = detalhes.slice(0, 20).map(d => { // Limit to first 20 months
       const resumo = d.resumo || {};
       const saldoFinal = resumo.saldoRestanteTotal || 0;
       const juros = resumo.jurosDoMes || 0;
       const pagoNoMes = resumo.pagoNoMes || 0;
       const saldoInicial = saldoFinal - juros + pagoNoMes;
-      const amortizacao = pagoNoMes;
-      const pagamento = 0;
+      const parcela = resumo.minimaPagoDoMes || 0;
+      const pagamentoExtra = resumo.extraPagoDoMes || 0;
+      cumulativeTotal += parcela + pagamentoExtra;
+      const pagamentoTotal = cumulativeTotal;
       return [
         d.mes,
         'R$ ' + saldoInicial.toFixed(2),
         'R$ ' + juros.toFixed(2),
-        'R$ ' + amortizacao.toFixed(2),
-        'R$ ' + pagamento.toFixed(2),
+        'R$ ' + parcela.toFixed(2),
+        'R$ ' + pagamentoExtra.toFixed(2),
+        'R$ ' + pagamentoTotal.toFixed(2),
         'R$ ' + saldoFinal.toFixed(2)
       ];
     });

@@ -115,6 +115,8 @@ public class PlanoService {
             totalJuros = totalJuros.add(jurosMes);
 
             BigDecimal restante = disponivel;
+            BigDecimal minimaPago = BigDecimal.ZERO;
+            BigDecimal extraPago = BigDecimal.ZERO;
 
             if (!orcamentoInsuficiente) {
                 // Caso orçamento >= soma das mínimas: paga mínimas e usa extra conforme estratégia
@@ -125,6 +127,7 @@ public class PlanoService {
                     s.saldo = s.saldo.subtract(minimo);
                     totalPago = totalPago.add(minimo);
                     restante = restante.subtract(minimo);
+                    minimaPago = minimaPago.add(minimo);
                 }
 
                 List<DividaSim> ordenadas = sims.stream()
@@ -139,6 +142,7 @@ public class PlanoService {
                     s.saldo = s.saldo.subtract(extra);
                     totalPago = totalPago.add(extra);
                     restante = restante.subtract(extra);
+                    extraPago = extraPago.add(extra);
                 }
             } else {
                 // Orçamento insuficiente: alocar 100% do restante para a dívida de maior custo futuro
@@ -160,6 +164,8 @@ public class PlanoService {
                     alvo.saldo = alvo.saldo.subtract(pagar);
                     totalPago = totalPago.add(pagar);
                     restante = restante.subtract(pagar);
+                    // Quando insuficiente, consideramos tudo como "parcela" (já que não paga mínimo), mas para compatibilidade, colocamos em minimaPago
+                    minimaPago = minimaPago.add(pagar);
                 }
             }
 
@@ -167,6 +173,8 @@ public class PlanoService {
 
             ObjectNode resumo = objectMapper.createObjectNode();
             resumo.put("jurosDoMes", jurosMes.doubleValue());
+            resumo.put("minimaPagoDoMes", minimaPago.doubleValue());
+            resumo.put("extraPagoDoMes", extraPago.doubleValue());
             resumo.put("pagoNoMes", pagoNoMes.doubleValue());
             resumo.put("saldoRestanteTotal", sims.stream().map(s -> s.saldo).reduce(BigDecimal.ZERO, BigDecimal::add).doubleValue());
 
