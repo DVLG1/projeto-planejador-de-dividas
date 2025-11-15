@@ -136,23 +136,39 @@ function loginDev() {
 async function loginUser() {
   const email = document.getElementById('login-email').value.trim();
   const senha = document.getElementById('login-senha').value;
-  
+
   if (!email) return alert('Informe um email válido');
   if (!senha) return alert('Informe sua senha');
-  
+
   try {
     const res = await fetch(`${API_BASE}/usuarios`);
-    const usuarios = await res.json();
-    const user = usuarios.find(u => u.email === email);
+    const raw = await res.json();
+
+    // A API retorna um Page<UsuarioResponse> com propriedade 'content'.
+    // Aceitamos também arrays diretos por compatibilidade.
+    let usuarios = [];
+    if (Array.isArray(raw)) {
+      usuarios = raw;
+    } else if (raw && Array.isArray(raw.content)) {
+      usuarios = raw.content;
+    } else if (raw && raw._embedded) {
+      // fallback common HAL shape: _embedded.usuarios
+      const keys = Object.keys(raw._embedded);
+      if (keys.length > 0 && Array.isArray(raw._embedded[keys[0]])) {
+        usuarios = raw._embedded[keys[0]];
+      }
+    }
+
+    const user = usuarios.find(u => String(u.email).toLowerCase() === String(email).toLowerCase());
     if (!user) return alert('Usuário não encontrado');
-    
+
     // Validar senha armazenada no localStorage
     const storedCreds = localStorage.getItem(`user_${email}`);
     if (!storedCreds) return alert('Credenciais não encontradas. Crie uma conta.');
-    
+
     const creds = JSON.parse(storedCreds);
     if (creds.senha !== senha) return alert('Email ou senha incorretos');
-    
+
     currentMode = 'user';
     currentUser = user;
     showMainScreen();
@@ -378,8 +394,11 @@ function showAddDividaForm() {
 async function renderMeuPlano() {
   page.innerHTML = '<div class="notice">Carregando...</div>';
   try {
+    console.log('DEBUG: Buscando planos para usuario:', currentUser);
     const res = await fetch(`${API_BASE}/planos/usuario/${currentUser.id}`);
     const planos = await res.json();
+    console.log('DEBUG: Status da resposta:', res.status);
+    console.log('DEBUG: Planos recebidos:', planos);
     
     page.innerHTML = '';
     const arr = Array.isArray(planos) ? planos : [];
@@ -407,14 +426,214 @@ async function renderMeuPlano() {
         const sec = document.createElement('div');
         sec.className = 'dashboard-section';
         sec.innerHTML = `
-          <h3>Plano ${idx + 1}</h3>
+          <h3>Plano ${idx + 1} (ID ${p.id})</h3>
           <p><strong>Estratégia:</strong> ${p.estrategia}</p>
+          <p><strong>Valor disponível:</strong> R$ ${p.valorDisponivelMensal}</p>
           <p><strong>Duração:</strong> ${p.duracaoEstimadaMeses} meses</p>
           <p><strong>Total Estimado:</strong> R$ ${p.totalPagoEstimado}</p>
           <p><strong>Custo Juros:</strong> R$ ${p.custoTotalJuros}</p>
-          <details><summary>Ver Cronograma</summary><pre style="font-size:11px; overflow-x:auto;">${p.detalhes || 'N/A'}</pre></details>
+          <details>
+            <summary>Ver Cronograma</summary>
+            <div style="margin-top:10px;">
+              <div class="form-row" style="gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+                <button class="btn" id="btn-compare-${p.id}">Comparar estratégias</button>
+                <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-av-saldo-${p.id}" checked> Avalanche (Saldo)</label>
+                <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-sn-saldo-${p.id}" ${p.estrategia==='SNOWBALL'?'checked':''}> Snowball (Saldo)</label>
+                <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-av-juros-${p.id}"> Avalanche (Juros)</label>
+                <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-sn-juros-${p.id}"> Snowball (Juros)</label>
+              </div>
+              <canvas id="chart_${p.id}" width="700" height="300" style="max-width:100%; border:1px solid #eee; background:#fff;"></canvas>
+            </div>
+          </details>
+          <div class="form-row" style="margin-top:8px;">
+            <select id="estrategia_${p.id}"><option value="AVALANCHE" ${p.estrategia==='AVALANCHE'?'selected':''}>AVALANCHE</option><option value="SNOWBALL" ${p.estrategia==='SNOWBALL'?'selected':''}>SNOWBALL</option></select>
+            <input id="valor_${p.id}" type="number" step="0.01" placeholder="valorDisponivelMensal" value="${p.valorDisponivelMensal || ''}" style="margin-left:8px;">
+          </div>
+          <div style="margin-top:8px;">
+            <button class="btn" id="btn-update-${p.id}">Atualizar e Recalcular</button>
+            <button class="btn secondary" id="btn-delete-${p.id}" style="margin-left:8px;">Deletar</button>
+          </div>
         `;
         page.appendChild(sec);
+        // Desenhar gráfico quando o details for aberto
+        const detailsEl = sec.querySelector('details');
+        const setupChart = async () => {
+          const canvas = document.getElementById(`chart_${p.id}`);
+          if (!canvas) return;
+          try {
+            // Série base (plano atual)
+            // Simplified parsing for p.detalhes - it should be a JSON string array
+            let baseDataRaw = p.detalhes;
+            let baseData = [];
+            try {
+              if (typeof baseDataRaw === 'string') {
+                baseData = JSON.parse(baseDataRaw);
+              } else if (Array.isArray(baseDataRaw)) {
+                baseData = baseDataRaw;
+              }
+              // Ensure it's an array
+              if (!Array.isArray(baseData)) {
+                baseData = [];
+              }
+            } catch (err) {
+              console.warn('Erro ao parsear p.detalhes para plano id', p.id, err, 'raw:', baseDataRaw);
+              baseData = [];
+            }
+
+            // If no cronograma, expose raw payload for debugging under the chart
+            const canvasContainer = canvas ? canvas.parentElement : null;
+            if (canvasContainer) {
+              let dbg = canvasContainer.querySelector('.chart-debug');
+              if (!dbg) {
+                dbg = document.createElement('pre'); dbg.className = 'chart-debug'; dbg.style.display = 'none'; dbg.style.fontSize='11px'; dbg.style.maxHeight='240px'; dbg.style.overflow='auto'; dbg.style.background='#fff'; dbg.style.border='1px solid #eee'; dbg.style.padding='8px'; dbg.style.marginTop='8px'; canvasContainer.appendChild(dbg);
+              }
+              if (!baseData || baseData.length === 0) {
+                dbg.style.display = 'block';
+                try {
+                  let rawText = (typeof baseDataRaw === 'string') ? baseDataRaw : JSON.stringify(baseDataRaw, null, 2);
+                  dbg.textContent = 'TYPE: ' + (baseDataRaw === null ? 'null' : typeof baseDataRaw) + '\n\nRAW detalhes:\n' + rawText + '\n\nPARSED result:\n' + JSON.stringify(baseData, null, 2);
+                } catch(_) { dbg.textContent = String(baseDataRaw); }
+
+                // Additional debug: fetch server copy of the plan to inspect response shape
+                try {
+                  const resp = await fetch(`${API_BASE}/planos/${p.id}`);
+                  let txt = await resp.text();
+                  dbg.textContent += '\n\n===== API /planos/' + p.id + ' (raw response text) =====\n' + txt;
+                  try {
+                    const parsedResp = JSON.parse(txt);
+                    dbg.textContent += '\n\nPARSED API RESPONSE:\n' + JSON.stringify(parsedResp, null, 2);
+                  } catch(pe) {
+                    dbg.textContent += '\n\n(API response not JSON or double-encoded)';
+                  }
+                } catch(fe) {
+                  dbg.textContent += '\n\nError fetching plan from API: ' + fe.message;
+                }
+                console.warn('Chart parse failed for plano id', p.id, 'type:', typeof baseDataRaw, 'raw:', baseDataRaw, 'parsed:', baseData);
+              }
+              // Always show debug info when no data
+              if (!baseData || baseData.length === 0) {
+                dbg.style.display = 'block';
+              }
+            }
+
+            // Normalize numeric fields defensively
+            const baseSaldo = baseData.map(m => ({ x: Number(m.mes) || 0, y: Number(m.resumo && m.resumo.saldoRestanteTotal) || 0 }));
+            let jurosAcAv = [];
+            let jurosAcSn = [];
+            // juros acumulados do base
+            const baseJuros = baseData.map(m => Number(m.resumo && m.resumo.jurosDoMes) || 0);
+            let acc = 0; const baseJurosAc = baseJuros.map(j => (acc += j));
+
+            if (baseData.length === 0) {
+              // nothing to draw
+              const ctx = canvas.getContext('2d');
+              ctx.clearRect(0,0,canvas.width,canvas.height);
+              ctx.fillStyle = '#555'; ctx.font = '14px sans-serif'; ctx.fillText('Sem cronograma para exibir.', 20, 30);
+              return;
+            }
+
+          // Logica simplificada: mostrar apenas o gráfico básico primeiro
+          const baseSaldoPoints = baseData.map(m => ({ x: Number(m.mes) || 0, y: Number(m.resumo && m.resumo.saldoRestanteTotal) || 0 }));
+          const jurosMesPoints = baseData.map(m => ({ x: Number(m.mes) || 0, y: Number(m.resumo && m.resumo.jurosDoMes) || 0 }));
+
+          let accumulatedInterest = 0;
+          const jurosAcumuladoPoints = baseData.map(m => ({
+            x: Number(m.mes) || 0,
+            y: (accumulatedInterest += Number(m.resumo && m.resumo.jurosDoMes) || 0)
+          }));
+
+          const series = [];
+
+          // Mostrar série de saldos por padrão
+          if (baseSaldoPoints.length > 0) {
+            series.push({
+              name: 'Saldo Restante',
+              color: '#2b7cff',
+              dashed: false,
+              points: baseSaldoPoints
+            });
+          }
+
+          // Simplificar lógica - apenas mostrar básico e permitir toggle
+          const redraw = () => {
+            const enabledSeries = [];
+
+            if (document.getElementById(`chk-av-saldo-${p.id}`).checked && baseSaldoPoints.length > 0) {
+              enabledSeries.push({
+                name: 'Saldo Restante',
+                color: '#2b7cff',
+                dashed: false,
+                points: baseSaldoPoints
+              });
+            }
+
+            if (document.getElementById(`chk-av-juros-${p.id}`).checked && jurosAcumuladoPoints.length > 0) {
+              enabledSeries.push({
+                name: 'Juros Acumulados',
+                color: '#ff8c2b',
+                dashed: true,
+                points: jurosAcumuladoPoints
+              });
+            }
+
+            drawMultiSeriesChart(canvas, enabledSeries, { title: 'Evolução do Plano' });
+          };
+
+          // Vincular toggles simples
+          ['chk-av-saldo-', 'chk-av-juros-'].forEach(prefix => {
+            const el = document.getElementById(prefix + p.id);
+            el && el.addEventListener('change', redraw);
+          });
+
+          // Botão comparar simplificado - gera apenas quando clicado
+          document.getElementById(`btn-compare-${p.id}`).onclick = async () => {
+            try {
+              alert('Funcionalidade de comparação temporariamente desabilitada');
+              // Futuramente: implementar comparação sem quebrar o básico
+            } catch (e) {
+              alert('Erro na comparação: ' + e.message);
+            }
+          };
+
+          // Inicialização: mostrar saldos por padrão
+          document.getElementById(`chk-av-saldo-${p.id}`).checked = true;
+          document.getElementById(`chk-av-juros-${p.id}`).checked = false;
+          redraw();
+          } catch(e) {
+            const canvas = document.getElementById(`chart_${p.id}`);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#555';
+            ctx.fillText('Sem dados de cronograma para exibir.', 10, 20);
+          }
+        };
+        detailsEl.addEventListener('toggle', () => { if (detailsEl.open) setupChart(); });
+        if (detailsEl.open) setupChart();
+
+        document.getElementById(`btn-update-${p.id}`).onclick = async () => {
+          const estrategia = document.getElementById(`estrategia_${p.id}`).value;
+          const valor = parseFloat(document.getElementById(`valor_${p.id}`).value);
+          if (!valor || valor <= 0) return alert('Informe um valorDisponivelMensal válido');
+          try {
+            const res = await fetch(`${API_BASE}/planos/${p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estrategia, valorDisponivelMensal: valor }) });
+            const json = await res.json();
+            if (!res.ok) return alert(json.error || 'Erro ao atualizar');
+            alert('Plano atualizado!');
+            renderMeuPlano();
+          } catch (e) { alert('Erro: ' + e.message); }
+        };
+        document.getElementById(`btn-delete-${p.id}`).onclick = async () => {
+          if (!confirm('Tem certeza que deseja deletar este plano?')) return;
+          try {
+            const res = await fetch(`${API_BASE}/planos/${p.id}`, { method: 'DELETE' });
+            if (!res.ok && res.status !== 204) {
+              const json = await res.json().catch(()=>({}));
+              return alert(json.error || 'Erro ao deletar');
+            }
+            alert('Plano deletado');
+            renderMeuPlano();
+          } catch (e) { alert('Erro: ' + e.message); }
+        };
       });
     }
   } catch (e) {
@@ -581,24 +800,252 @@ function showPagamentoForm(){
 }
 
 function renderGerarPlano(){
-  page.innerHTML = '';
-  const el = document.createElement('div');
-  el.innerHTML = `
-    <div class="small">Gere um plano de quitação para um usuário existente (informe o id do usuário)</div>
-    <div class="form-row"><input id="pl-usuario" placeholder="usuarioId"><input id="pl-valor" placeholder="valorDisponivelMensal (ex: 500.00)"></div>
-    <div class="form-row"><select id="pl-estrategia"><option value="AVALANCHE">AVALANCHE</option><option value="SNOWBALL">SNOWBALL</option></select></div>
-    <button class="btn" id="pl-gen">Gerar Plano</button>
+  page.innerHTML = `
+    <div class="dashboard-section">
+      <h3>Gerar Plano de Quitação</h3>
+      <div class="small">Gere um plano de quitação para um usuário existente (informe o id do usuário)</div>
+      <div class="form-row"><input id="pl-usuario" placeholder="usuarioId"><input id="pl-valor" type="number" step="0.01" placeholder="valorDisponivelMensal (ex: 500.00)"></div>
+      <div class="form-row"><select id="pl-estrategia"><option value="AVALANCHE">AVALANCHE</option><option value="SNOWBALL">SNOWBALL</option></select></div>
+      <button class="btn" id="pl-gen">Gerar Plano</button>
+    </div>
   `;
-  page.appendChild(el);
+
+  // Carregar e exibir planos existentes
+  loadAndDisplayPlanosDev();
+
   document.getElementById('pl-gen').onclick = async () => {
-    const payload = { usuarioId: parseInt(document.getElementById('pl-usuario').value), valorDisponivelMensal: parseFloat(document.getElementById('pl-valor').value), estrategia: document.getElementById('pl-estrategia').value };
+    const payload = {
+      usuarioId: parseInt(document.getElementById('pl-usuario').value),
+      valorDisponivelMensal: parseFloat(document.getElementById('pl-valor').value),
+      estrategia: document.getElementById('pl-estrategia').value
+    };
+    if (!payload.usuarioId || !payload.valorDisponivelMensal || payload.valorDisponivelMensal <= 0) {
+      return alert('Preencha todos os campos com valores válidos');
+    }
     try {
       const res = await fetch(`${API_BASE}/planos/generate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const json = await res.json();
       if (!res.ok) return alert(json.error || 'Erro');
-      page.innerHTML = '<pre>' + JSON.stringify(json, null, 2) + '</pre>';
+      alert('Plano gerado com sucesso! ID: ' + json.id);
+      loadAndDisplayPlanosDev(); // Recarregar lista
     } catch(e){ alert(e.message) }
   };
+}
+
+async function loadAndDisplayPlanosDev(){
+  try {
+    // Carregar todos os planos
+    const res = await fetch(`${API_BASE}/planos`);
+    const planos = await res.json();
+    const arr = Array.isArray(planos) ? planos : [];
+
+    if (arr.length === 0) return; // Não há planos para mostrar
+
+    // Criar seção para listar planos existentes
+    const planosSection = document.createElement('div');
+    planosSection.className = 'dashboard-section';
+    planosSection.innerHTML = '<h3>Planos Existentes</h3>';
+    page.appendChild(planosSection);
+
+    arr.forEach((p, idx) => {
+      const sec = document.createElement('div');
+      sec.className = 'dashboard-section';
+      sec.innerHTML = `
+        <h4>Plano ${idx + 1} (ID ${p.id}) - Usuário ${p.usuario ? p.usuario.id : 'N/A'}</h4>
+        <p><strong>Estratégia:</strong> ${p.estrategia}</p>
+        <p><strong>Valor disponível:</strong> R$ ${p.valorDisponivelMensal}</p>
+        <p><strong>Duração:</strong> ${p.duracaoEstimadaMeses} meses</p>
+        <p><strong>Total Estimado:</strong> R$ ${p.totalPagoEstimado}</p>
+        <p><strong>Custo Juros:</strong> R$ ${p.custoTotalJuros}</p>
+        <details>
+          <summary>Ver Cronograma</summary>
+          <div style="margin-top:10px;">
+            <div class="form-row" style="gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+              <button class="btn" id="btn-compare-${p.id}">Comparar estratégias</button>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-av-saldo-${p.id}" checked> Avalanche (Saldo)</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-sn-saldo-${p.id}" ${p.estrategia==='SNOWBALL'?'checked':''}> Snowball (Saldo)</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-av-juros-${p.id}"> Avalanche (Juros)</label>
+              <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="chk-sn-juros-${p.id}"> Snowball (Juros)</label>
+            </div>
+            <canvas id="chart_${p.id}" width="700" height="300" style="max-width:100%; border:1px solid #eee; background:#fff;"></canvas>
+          </div>
+        </details>
+        <div class="form-row" style="margin-top:8px;">
+          <select id="estrategia_${p.id}"><option value="AVALANCHE" ${p.estrategia==='AVALANCHE'?'selected':''}>AVALANCHE</option><option value="SNOWBALL" ${p.estrategia==='SNOWBALL'?'selected':''}>SNOWBALL</option></select>
+          <input id="valor_${p.id}" type="number" step="0.01" placeholder="valorDisponivelMensal" value="${p.valorDisponivelMensal || ''}" style="margin-left:8px;">
+        </div>
+        <div style="margin-top:8px;">
+          <button class="btn" id="btn-update-${p.id}">Atualizar e Recalcular</button>
+          <button class="btn secondary" id="btn-delete-${p.id}" style="margin-left:8px;">Deletar</button>
+        </div>
+      `;
+      planosSection.appendChild(sec);
+
+      // Adicionar a funcionalidade do gráfico (reutilizar código existente)
+      const detailsEl = sec.querySelector('details');
+      const setupChart = async () => {
+        const canvas = document.getElementById(`chart_${p.id}`);
+        if (!canvas) return;
+        try {
+          let baseDataRaw = p.detalhes;
+          let baseData = [];
+          try {
+            if (typeof baseDataRaw === 'string') {
+              baseData = JSON.parse(baseDataRaw);
+            } else if (Array.isArray(baseDataRaw)) {
+              baseData = baseDataRaw;
+            }
+            if (!Array.isArray(baseData)) baseData = [];
+          } catch (err) {
+            console.warn('Erro ao parsear p.detalhes para plano id', p.id, err);
+            baseData = [];
+          }
+
+          const canvasContainer = canvas ? canvas.parentElement : null;
+          if (canvasContainer && (!baseData || baseData.length === 0)) {
+            let dbg = canvasContainer.querySelector('.chart-debug');
+            if (!dbg) {
+              dbg = document.createElement('pre');
+              dbg.className = 'chart-debug';
+              dbg.style.display = 'block';
+              dbg.style.fontSize='11px';
+              dbg.style.maxHeight='240px';
+              dbg.style.overflow='auto';
+              dbg.style.background='#fff';
+              dbg.style.border='1px solid #eee';
+              dbg.style.padding='8px';
+              dbg.style.marginTop='8px';
+              canvasContainer.appendChild(dbg);
+            }
+            try {
+              let rawText = (typeof baseDataRaw === 'string') ? baseDataRaw : JSON.stringify(baseDataRaw, null, 2);
+              dbg.textContent = 'TYPE: ' + (baseDataRaw === null ? 'null' : typeof baseDataRaw) + '\n\nRAW detalhes:\n' + rawText +
+                '\n\nPARSED result:\n' + JSON.stringify(baseData, null, 2);
+            } catch(_) {
+              dbg.textContent = String(baseDataRaw);
+            }
+          }
+
+          const baseSaldo = baseData.map(m => ({ x: Number(m.mes) || 0, y: Number(m.resumo && m.resumo.saldoRestanteTotal) || 0 }));
+          let jurosAcAv = [], jurosAcSn = [];
+          const baseJuros = baseData.map(m => Number(m.resumo && m.resumo.jurosDoMes) || 0);
+          let acc = 0;
+          const baseJurosAc = baseJuros.map(j => (acc += j));
+
+          if (baseData.length === 0) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = '#555';
+            ctx.fillText('Sem cronograma para exibir.', 20, 30);
+            return;
+          }
+
+          const avSaldo = p.estrategia === 'AVALANCHE' ? baseSaldo : [];
+          const snSaldo = p.estrategia === 'SNOWBALL' ? baseSaldo : [];
+          if (p.estrategia === 'AVALANCHE') jurosAcAv = baseJurosAc.map((y,i)=>({x: baseData[i].mes, y}));
+          if (p.estrategia === 'SNOWBALL') jurosAcSn = baseJurosAc.map((y,i)=>({x: baseData[i].mes, y}));
+
+          const series = [];
+          const colors = { avSaldo:'#2b7cff', snSaldo:'#ff8c2b', avJuros:'#8bb6ff', snJuros:'#ffc38b' };
+          const pushIf = (enabled, s) => { if (enabled) series.push(s); };
+          const redraw = () => {
+            const enabledSeries = [];
+            pushIf(document.getElementById(`chk-av-saldo-${p.id}`).checked && avSaldo.length>0, { name:'Avalanche (Saldo)', color:colors.avSaldo, dashed:false, points:avSaldo });
+            pushIf(document.getElementById(`chk-sn-saldo-${p.id}`).checked && snSaldo.length>0, { name:'Snowball (Saldo)', color:colors.snSaldo, dashed:false, points:snSaldo });
+            pushIf(document.getElementById(`chk-av-juros-${p.id}`).checked && jurosAcAv.length>0, { name:'Avalanche (Juros)', color:colors.avJuros, dashed:true, points:jurosAcAv });
+            pushIf(document.getElementById(`chk-sn-juros-${p.id}`).checked && jurosAcSn.length>0, { name:'Snowball (Juros)', color:colors.snJuros, dashed:true, points:jurosAcSn });
+            drawMultiSeriesChart(canvas, enabledSeries, { title: 'Evolução do Saldo e Juros' });
+          };
+
+          ['chk-av-saldo-','chk-sn-saldo-','chk-av-juros-','chk-sn-juros-'].forEach(prefix => {
+            const el = document.getElementById(prefix + p.id);
+            el && el.addEventListener('change', redraw);
+          });
+
+          document.getElementById(`btn-compare-${p.id}`).onclick = async () => {
+            const other = p.estrategia === 'AVALANCHE' ? 'SNOWBALL' : 'AVALANCHE';
+            const payload = { usuarioId: p.usuario ? p.usuario.id : currentUser.id, valorDisponivelMensal: p.valorDisponivelMensal, estrategia: other };
+            let tempId = null;
+            try {
+              const res = await fetch(`${API_BASE}/planos/generate`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+              const json = await res.json();
+              if (!res.ok) return alert(json.error || 'Erro ao gerar simulação');
+              tempId = json.id;
+              const detalhes = Array.isArray(json.detalhes) ? json.detalhes : JSON.parse(json.detalhes || '[]');
+              const saldo = detalhes.map(m => ({ x: m.mes, y: (m.resumo && m.resumo.saldoRestanteTotal) ? m.resumo.saldoRestanteTotal : 0 }));
+              const jurosMes = detalhes.map(m => (m.resumo && m.resumo.jurosDoMes) ? m.resumo.jurosDoMes : 0);
+              let acc2 = 0;
+              const jurosAc = jurosMes.map(j => (acc2 += j));
+              if (other === 'AVALANCHE') {
+                if (avSaldo.length === 0) avSaldo.push(...saldo);
+                if (jurosAcAv.length === 0) jurosAcAv.push(...jurosAc.map((y,i)=>({x: detalhes[i].mes, y})));
+                document.getElementById(`chk-av-saldo-${p.id}`).checked = true;
+              } else {
+                if (snSaldo.length === 0) snSaldo.push(...saldo);
+                if (jurosAcSn.length === 0) jurosAcSn.push(...jurosAc.map((y,i)=>({x: detalhes[i].mes, y})));
+                document.getElementById(`chk-sn-saldo-${p.id}`).checked = true;
+              }
+              redraw();
+            } catch (e) {
+              alert('Erro: ' + e.message);
+            } finally {
+              if (tempId) {
+                try { await fetch(`${API_BASE}/planos/${tempId}`, { method:'DELETE' }); } catch(_){}
+              }
+            }
+          };
+
+          if (p.estrategia === 'AVALANCHE') {
+            document.getElementById(`chk-av-saldo-${p.id}`).checked = true;
+            document.getElementById(`chk-sn-saldo-${p.id}`).checked = false;
+          } else {
+            document.getElementById(`chk-av-saldo-${p.id}`).checked = false;
+            document.getElementById(`chk-sn-saldo-${p.id}`).checked = true;
+          }
+          document.getElementById(`chk-av-juros-${p.id}`).checked = false;
+          document.getElementById(`chk-sn-juros-${p.id}`).checked = false;
+          redraw();
+        } catch(e) {
+          const canvas = document.getElementById(`chart_${p.id}`);
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#555';
+            ctx.fillText('Sem dados de cronograma para exibir.', 10, 20);
+          }
+        }
+      };
+      detailsEl.addEventListener('toggle', () => { if (detailsEl.open) setupChart(); });
+      if (detailsEl.open) setupChart();
+
+      document.getElementById(`btn-update-${p.id}`).onclick = async () => {
+        const estrategia = document.getElementById(`estrategia_${p.id}`).value;
+        const valor = parseFloat(document.getElementById(`valor_${p.id}`).value);
+        if (!valor || valor <= 0) return alert('Informe um valorDisponivelMensal válido');
+        try {
+          const res = await fetch(`${API_BASE}/planos/${p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estrategia, valorDisponivelMensal: valor }) });
+          const json = await res.json();
+          if (!res.ok) return alert(json.error || 'Erro ao atualizar');
+          alert('Plano atualizado!');
+          loadAndDisplayPlanosDev();
+        } catch (e) { alert('Erro: ' + e.message); }
+      };
+
+      document.getElementById(`btn-delete-${p.id}`).onclick = async () => {
+        if (!confirm('Tem certeza que deseja deletar este plano?')) return;
+        try {
+          const res = await fetch(`${API_BASE}/planos/${p.id}`, { method: 'DELETE' });
+          if (!res.ok && res.status !== 204) {
+            const json = await res.json().catch(()=>({}));
+            return alert(json.error || 'Erro ao deletar');
+          }
+          alert('Plano deletado');
+          loadAndDisplayPlanosDev();
+        } catch (e) { alert('Erro: ' + e.message); }
+      };
+    });
+  } catch (e) {
+    console.error('Erro ao carregar planos:', e);
+  }
 }
 
 function createTable(headers, rows){
@@ -614,6 +1061,119 @@ function createTable(headers, rows){
 }
 
 function createLoading(){ const d = document.createElement('div'); d.className='notice'; d.textContent='Carregando...'; return d }
+
+function drawDebtChart(canvas, points, opts={}){
+  // simple wrapper that uses drawMultiSeriesChart for single-series
+  const s = (points||[]).map(p => ({ x: Number(p.x)||0, y: Number(p.y)||0 }));
+  const series = [{ name: opts.name || 'Série', color: opts.color || '#2b7cff', dashed:false, points: s }];
+  drawMultiSeriesChart(canvas, series, opts);
+}
+
+function drawMultiSeriesChart(canvas, series, opts={}){
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const m = { top: 28, right: 16, bottom: 44, left: 64 };
+  const plotW = W - m.left - m.right;
+  const plotH = H - m.top - m.bottom;
+  if (!series || series.length === 0) { ctx.fillStyle='#555'; ctx.fillText('Sem dados', m.left, m.top+10); return; }
+
+  // compute domains
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  series.forEach(s => (s.points||[]).forEach(p => { if(p){ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); }}));
+  if (!isFinite(minX) || !isFinite(maxX)) { ctx.fillText('Sem dados', m.left, m.top+10); return; }
+  // ensure integer X domain (months)
+  minX = Math.floor(minX); maxX = Math.ceil(maxX);
+  const padY = (maxY - minY) * 0.12 || Math.max(1, Math.abs(maxY)*0.05);
+  const y0 = Math.max(0, minY - padY);
+  const y1 = maxY + padY;
+  const xToPx = x => m.left + (plotW * (x - minX) / ((maxX - minX) || 1));
+  const yToPx = y => m.top + plotH - (plotH * (y - y0) / ((y1 - y0) || 1));
+
+  // helper to render base (axes, grid, series)
+  function renderBase(){
+    ctx.clearRect(0,0,W,H);
+    // background
+    ctx.fillStyle = '#fff'; ctx.fillRect(m.left, m.top, plotW, plotH);
+    // grid vertical
+    ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1;
+    const xticks = Math.min(12, Math.max(4, maxX - minX));
+    for (let i=0;i<=xticks;i++){ const x = minX + Math.round(i*(maxX-minX)/(xticks||1)); const px=xToPx(x); ctx.beginPath(); ctx.moveTo(px, m.top); ctx.lineTo(px, m.top+plotH); ctx.stroke(); }
+    // grid horizontal
+    const yticks = 5;
+    for (let i=0;i<=yticks;i++){ const y = y0 + i*(y1-y0)/(yticks||1); const py = yToPx(y); ctx.beginPath(); ctx.moveTo(m.left,py); ctx.lineTo(m.left+plotW,py); ctx.stroke(); }
+
+    // axes
+    ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(m.left, m.top+plotH); ctx.lineTo(m.left+plotW, m.top+plotH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(m.left, m.top); ctx.lineTo(m.left, m.top+plotH); ctx.stroke();
+
+    // ticks labels
+    ctx.fillStyle='#6b7280'; ctx.font='12px Inter, sans-serif';
+    for (let i=0;i<=xticks;i++){ const x = minX + Math.round(i*(maxX-minX)/(xticks||1)); const px = xToPx(x); ctx.fillText(String(x), px-6, m.top+plotH+22); }
+    for (let i=0;i<=yticks;i++){ const y = y0 + (i*(y1-y0)/(yticks||1)); const py = yToPx(y); ctx.fillText('R$ '+Number(y).toFixed(0), 8, py+4); }
+
+    // draw series
+    series.forEach(s => {
+      const pts = (s.points||[]).map(p => ({ x: Number(p.x)||0, y: Number(p.y)||0 }));
+      ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = s.color || '#2b7cff';
+      if (s.dashed) ctx.setLineDash([6,4]); else ctx.setLineDash([]);
+      pts.forEach((p,i)=>{ const px=xToPx(p.x), py=yToPx(p.y); if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); });
+      ctx.stroke(); ctx.setLineDash([]);
+      // points
+      ctx.fillStyle = s.color || '#2b7cff';
+      pts.forEach(p=>{ const px=xToPx(p.x), py=yToPx(p.y); ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill(); });
+    });
+
+    // title
+    if (opts.title){ ctx.fillStyle='#111'; ctx.font='bold 14px Inter, sans-serif'; ctx.fillText(opts.title, m.left, m.top - 8); }
+
+    // legend (draw at bottom)
+    const legendX = m.left; const legendY = m.top + plotH + 28;
+    let lx = legendX; series.forEach(s => {
+      // swatch
+      ctx.fillStyle = s.color || '#2b7cff'; ctx.fillRect(lx, legendY-10, 18, 6);
+      ctx.fillStyle = '#374151'; ctx.font='12px Inter, sans-serif'; ctx.fillText(' ' + (s.name||''), lx + 22, legendY-2);
+      lx += 24 + ctx.measureText(s.name||'').width + 18;
+    });
+  }
+
+  // initial render
+  renderBase();
+
+  // mouse interactions: show vertical guide and tooltip
+  canvas.onmousemove = (ev) => {
+    renderBase();
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left; const my = ev.clientY - rect.top;
+    const pxToX = px => minX + ((px - m.left) * (maxX - minX) / (plotW || 1));
+    const hoverXf = pxToX(mx);
+    const ix = Math.round(hoverXf);
+    // collect nearest points for ix
+    const hoverPoints = [];
+    series.forEach(s => {
+      let best = Infinity, bestPt = null;
+      (s.points||[]).forEach(pt => { const d = Math.abs(pt.x - ix); if (d < best) { best = d; bestPt = pt; } });
+      if (bestPt) hoverPoints.push({ name: s.name, color: s.color, pt: bestPt });
+    });
+    if (hoverPoints.length === 0) return;
+    const rx = xToPx(ix);
+    // vertical guide
+    ctx.strokeStyle = 'rgba(107,114,128,0.6)'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(rx, m.top); ctx.lineTo(rx, m.top+plotH); ctx.stroke(); ctx.setLineDash([]);
+
+    const lines = [`Mês: ${ix}`].concat(hoverPoints.map(h => `${h.name}: R$ ${Number(h.pt.y).toFixed(2)}`));
+    ctx.font = '12px Inter, sans-serif';
+    const padding = 8;
+    const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + padding*2;
+    const th = lines.length * 16 + padding;
+    let tx = rx + 10; let ty = my - th/2;
+    if (tx + tw > W - 8) tx = rx - tw - 10; if (ty < 4) ty = 4; if (ty + th > H - 4) ty = H - th - 4;
+    ctx.fillStyle = 'rgba(255,255,255,0.98)'; ctx.strokeStyle = '#e6e6e6'; ctx.lineWidth = 1; ctx.fillRect(tx, ty, tw, th); ctx.strokeRect(tx, ty, tw, th);
+    ctx.fillStyle = '#111';
+    lines.forEach((l,i)=> ctx.fillText(l, tx + padding, ty + padding + (i*16)));
+  };
+  canvas.onmouseleave = () => { renderBase(); };
+}
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {

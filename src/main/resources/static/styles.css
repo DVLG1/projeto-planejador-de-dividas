@@ -31,3 +31,11 @@ th{background:#f8fafc;color:var(--muted)}
 .dashboard-section{background:#fff;padding:12px;margin-bottom:12px;border:1px solid #e5e7eb;border-radius:6px}
 .dashboard-section h3{margin:0 0 8px;font-size:14px}
 
+/* Chart styles */
+.chart-container{position:relative;background:#fff;border:1px solid #eef2f7;border-radius:6px;padding:10px}
+.chart-legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.chart-legend .item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.chart-legend .swatch{width:12px;height:6px;border-radius:3px}
+.chart-tooltip{position:absolute;background:rgba(255,255,255,0.98);border:1px solid #ddd;padding:8px;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.06);font-size:13px;pointer-events:none}
+.chart-debug{font-size:11px;max-height:120px;overflow:auto;background:#fff;border:1px solid #eee;padding:8px;margin-top:8px;border-radius:6px}
+

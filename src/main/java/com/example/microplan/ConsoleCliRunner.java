@@ -49,7 +49,7 @@ public class ConsoleCliRunner implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         Scanner sc = new Scanner(System.in);
-        System.out.println("MicroPlan interactive CLI enabled. Type number and Enter.");
+        System.out.println("MicroPlan interactive CLI enabled. Type number and press Enter.");
 
         while (true) {
             System.out.println();
@@ -64,7 +64,6 @@ public class ConsoleCliRunner implements CommandLineRunner {
             System.out.println("8) Resetar dados de teste (DESTRUTIVO)");
             System.out.print("Escolha: ");
             String raw = sc.nextLine().trim();
-            // accept inputs like "5" or "5) Listar Usuarios" by extracting leading number
             String opt = null;
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(\\d+)").matcher(raw);
             if (m.find()) opt = m.group(1);
@@ -84,7 +83,7 @@ public class ConsoleCliRunner implements CommandLineRunner {
                     case "7": listarDividas(); break;
                     case "8": resetarTestData(sc); break;
                     case "0": System.out.println("Saindo CLI"); return;
-                    default: System.out.println("Opção inválida. Digite um número entre 0 e 7.");
+                    default: System.out.println("Opção inválida. Digite um número entre 0 e 8.");
                 }
             } catch (Exception e) {
                 System.out.println("Erro: " + e.getMessage());
@@ -197,7 +196,7 @@ public class ConsoleCliRunner implements CommandLineRunner {
     private boolean confirmar(Scanner sc, String mensagem) {
         System.out.print(mensagem + " (S/N): ");
         String r = sc.nextLine().trim().toUpperCase();
-        return r == "S" || r.equals("S") || r.equals("Y");
+        return "S".equals(r) || "Y".equals(r);
     }
 
     private void resetarTestData(Scanner sc) {
