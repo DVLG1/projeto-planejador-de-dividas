@@ -3,6 +3,7 @@ package com.example.microplan.controller;
 import com.example.microplan.dto.response.UsuarioResponse;
 import com.example.microplan.model.Usuario;
 import com.example.microplan.repository.UsuarioRepository;
+import com.example.microplan.service.UsuarioService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,6 +22,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +37,13 @@ public class UsuarioController {
     private record CreateUsuarioRequest(
             @NotBlank(message = "nome é obrigatório") String nome,
             @NotBlank(message = "email é obrigatório") @Email(message = "email inválido") String email,
+            @NotBlank(message = "senha é obrigatória") String senha,
             @Positive(message = "rendaMensal deve ser positiva") java.math.BigDecimal rendaMensal
+    ) {}
+
+    private record LoginRequest(
+            @NotBlank(message = "email é obrigatório") @Email(message = "email inválido") String email,
+            @NotBlank(message = "senha é obrigatória") String senha
     ) {}
 
     private record UpdateUsuarioRequest(
@@ -45,9 +53,11 @@ public class UsuarioController {
     ) {}
 
     private final UsuarioRepository usuarioRepo;
+    private final UsuarioService usuarioService;
 
-    public UsuarioController(UsuarioRepository usuarioRepo) {
+    public UsuarioController(UsuarioRepository usuarioRepo, UsuarioService usuarioService) {
         this.usuarioRepo = usuarioRepo;
+        this.usuarioService = usuarioService;
     }
 
     @GetMapping
@@ -68,25 +78,64 @@ public class UsuarioController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/register")
+    @Operation(summary = "Registrar novo usuário")
+    @ApiResponse(responseCode = "201", description = "Usuário registrado com sucesso")
+    @ApiResponse(responseCode = "409", description = "Email já cadastrado")
+    @ApiResponse(responseCode = "400", description = "Dados inválidos")
+    public ResponseEntity<?> registrar(@Valid @RequestBody CreateUsuarioRequest req) {
+        try {
+            Usuario salvo = usuarioService.registrarUsuario(req.nome(), req.email(), req.senha(), req.rendaMensal());
+            return ResponseEntity.created(URI.create("/api/usuarios/" + salvo.getId()))
+                    .body(Map.of("message", "Usuário registrado com sucesso", "user", UsuarioResponse.from(salvo)));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Email já cadastrado")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "email já cadastrado"));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Erro ao registrar usuário: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/login")
+    @Operation(summary = "Login de usuário")
+    @ApiResponse(responseCode = "200", description = "Login realizado com sucesso")
+    @ApiResponse(responseCode = "401", description = "Credenciais inválidas")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
+        try {
+            Optional<Usuario> usuarioOpt = usuarioService.autenticarUsuario(req.email(), req.senha());
+            if (usuarioOpt.isPresent()) {
+                Usuario usuario = usuarioOpt.get();
+                return ResponseEntity.ok(Map.of(
+                    "message", "Login realizado com sucesso",
+                    "user", UsuarioResponse.from(usuario)
+                ));
+            } else {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Email ou senha incorretos"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Erro no login: " + e.getMessage()));
+        }
+    }
+
     @PostMapping
-    @Operation(summary = "Criar usuário")
+    @Operation(summary = "Criar usuário (deprecated - usar /register)")
     @ApiResponse(responseCode = "201", description = "Criado")
     @ApiResponse(responseCode = "400", description = "Dados inválidos")
     public ResponseEntity<?> criar(@Valid @RequestBody CreateUsuarioRequest req) {
-        Optional<Usuario> existing = usuarioRepo.findByEmail(req.email());
-        if (existing.isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "email já cadastrado"));
-        }
         try {
-            Usuario u = new Usuario();
-            u.setNome(req.nome());
-            u.setEmail(req.email());
-            u.setRendaMensal(req.rendaMensal());
-            Usuario salvo = usuarioRepo.save(u);
+            Usuario salvo = usuarioService.registrarUsuario(req.nome(), req.email(), req.senha(), req.rendaMensal());
             URI location = URI.create("/api/usuarios/" + salvo.getId());
             return ResponseEntity.created(location).body(UsuarioResponse.from(salvo));
-        } catch (DataIntegrityViolationException dive) {
-            return ResponseEntity.badRequest().body(Map.of("error", "violação de integridade: " + dive.getMostSpecificCause().getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Email já cadastrado")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "email já cadastrado"));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Erro ao criar conta: " + e.getMessage()));
         }
     }
 

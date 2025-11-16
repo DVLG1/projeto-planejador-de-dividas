@@ -66,6 +66,12 @@
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
 
+    <!-- Spring Security for BCrypt password encoding -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-crypto</artifactId>
+    </dependency>
+
     <!-- MySQL driver -->
     <dependency>
       <groupId>com.mysql</groupId>

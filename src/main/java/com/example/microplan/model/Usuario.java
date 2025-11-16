@@ -16,6 +16,8 @@ public class Usuario {
     @Column(unique = true)
     private String email;
 
+    private String senha;
+
     @Column(precision = 40, scale = 2)
     private BigDecimal rendaMensal;
 
@@ -28,6 +30,9 @@ public class Usuario {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getSenha() { return senha; }
+    public void setSenha(String senha) { this.senha = senha; }
 
     public BigDecimal getRendaMensal() { return rendaMensal; }
     public void setRendaMensal(BigDecimal rendaMensal) { this.rendaMensal = rendaMensal; }

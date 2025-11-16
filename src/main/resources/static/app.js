@@ -55,21 +55,17 @@ async function createAccount() {
   if (!rendaMensal || rendaMensal <= 0) return alert('Informe uma renda mensal válida');
 
   try {
-    const res = await fetch(`${API_BASE}/usuarios`, {
+    const res = await fetch(`${API_BASE}/usuarios/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, email, rendaMensal })
+      body: JSON.stringify({ nome, email, senha, rendaMensal })
     });
 
     const json = await res.json();
     if (!res.ok) return alert(json.error || 'Erro ao criar conta');
 
-    // Store credentials locally
-    localStorage.setItem(`user_${email}`, JSON.stringify({ email, senha }));
-
     alert('Conta criada com sucesso! Faça login com seu email.');
     closeSignupModal();
-    document.getElementById('auth-screen').style.display = 'flex';
   } catch (e) {
     alert('Erro: ' + e.message);
   }
@@ -567,61 +563,21 @@ async function loginUserForPage() {
   }
 
   try {
-    // First try API
-    let user;
-    try {
-      const res = await fetch(`${API_BASE}/usuarios`);
-      const data = await res.json();
-      const usuarios = data.content || data;
+    // Use secure login API
+    const res = await fetch(`${API_BASE}/usuarios/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, senha })
+    });
 
-      if (Array.isArray(usuarios)) {
-        user = usuarios.find(u => u.email.toLowerCase() === email.toLowerCase());
-      }
-    } catch (apiError) {
-      // API failed, use fake user for testing
+    const json = await res.json();
+    if (!res.ok) {
+      alert(json.error || 'Erro no login');
+      return;
     }
 
-    // If user not found, check stored credentials and create user in database
-    if (!user) {
-      // Check if we have stored credentials from signup
-      const stored = localStorage.getItem(`user_${email}`);
-      if (!stored || JSON.parse(stored).senha !== senha) {
-        alert('Stored credentials failed. Use the cadastro first.');
-        return;
-      }
-
-      // Create user in database using the stored signup data
-      const storedData = JSON.parse(stored);
-      try {
-        const createRes = await fetch(`${API_BASE}/usuarios`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nome: email.split('@')[0], // Use email prefix as name, or could be enhanced to store full name
-            email: email,
-            rendaMensal: null // Could be enhanced to store this too
-          })
-        });
-        if (createRes.ok) {
-          user = await createRes.json();
-        } else {
-          alert('Erro ao criar usuário na base de dados');
-          return;
-        }
-      } catch (createError) {
-        alert('Erro ao conectar com o servidor para criar usuário');
-        return;
-      }
-    } else {
-      // If user found from API, still check stored credentials
-      const stored = localStorage.getItem(`user_${email}`);
-      if (!stored || JSON.parse(stored).senha !== senha) {
-        alert('Credenciais incorretas');
-        return;
-      }
-    }
-
-    // Set session and redirect to app
+    // Login successful - set session and redirect to app
+    const user = json.user;
     currentUser = user;
     currentMode = 'user';
     localStorage.setItem('loggedUserId', user.id.toString());
