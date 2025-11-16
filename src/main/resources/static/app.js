@@ -934,13 +934,11 @@ async function renderMeuPlano() {
       <div id="existing-plan-section">
         <h4>Plano Existente (Último Plano)</h4>
         ${existingChart ? `<div id="saved-chart" style="display: flex; flex-wrap: wrap; gap: 20px;"></div>` : ''}
-        ${existingDetails ? `<div id="saved-table"></div>` : ''}
       </div>` : ''}
 
       <div id="plano-resultado" style="display: none;">
         <h4>Resultado do Plano</h4>
         <div id="plano-charts" style="display: flex; flex-wrap: wrap; gap: 20px;"></div>
-        <div id="plano-table"></div>
       </div>
     `;
   }
@@ -958,9 +956,9 @@ async function renderMeuPlano() {
       savedChartEl.insertBefore(instructionsDiv, savedChartEl.firstChild);
     }
   }
-  if (existingDetails && existingPlan) {
-    renderPlanoTable({ ...existingPlan }, existingDetails);
-  }
+  // if (existingDetails && existingPlan) {
+  //   renderPlanoTable({ ...existingPlan }, existingDetails);
+  // }
 
   // Add event listener for generate button only if there are debts - delayed to ensure DOM rendering
   if (temDividas) {
@@ -1040,7 +1038,7 @@ async function renderMeuPlano() {
                 const newSavedChart = document.getElementById('saved-chart');
                 await renderPlanoChartInContainer(json, detalhes, newSavedChart);
                 const newSavedTable = document.getElementById('saved-table');
-                renderPlanoTableContent(json, detalhes, newSavedTable);
+                // renderPlanoTableContent(json, detalhes, newSavedTable);
                 // Add instructions to saved chart
                 const instructionsDiv = document.createElement('div');
                 instructionsDiv.innerHTML = await createPaymentInstructions(json, detalhes);
@@ -1053,7 +1051,7 @@ async function renderMeuPlano() {
                 resultDiv.style.display = 'block';
               }
               await renderPlanoChart(json, detalhes);
-              renderPlanoTable(json, detalhes);
+              // renderPlanoTable(json, detalhes);
             }
 
             console.log('Plan generation completed successfully');
