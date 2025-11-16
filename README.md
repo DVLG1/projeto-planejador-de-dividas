@@ -11,15 +11,15 @@ Tema: Empréstimos e Endividamento (Meu BC – FAQ)
 
 O Banco Central aponta que muitas pessoas caem em ciclos de endividamento por não entender:
 
-juros compostos
+- juros compostos
 
-impacto da parcela mínima
+- impacto da parcela mínima
 
-prioridade entre dívidas
+- prioridade entre dívidas
 
-efeito dos atrasos
+- efeito dos atrasos
 
-necessidade de planejamento
+- necessidade de planejamento
 
 Isso resulta em mais juros, mais tempo endividado e perda de controle financeiro.
 
@@ -27,185 +27,133 @@ Isso resulta em mais juros, mais tempo endividado e perda de controle financeiro
 
 O MicroPlan funciona como uma ferramenta educativa que:
 
-centraliza todas as dívidas do usuário
-
-simula juros compostos mês a mês
-
-gera planos automáticos de quitação
-
-aplica estratégias:
-
-Avalanche (maior juros primeiro)
-
-Snowball (menor saldo primeiro)
-
-exibe projeções e gráficos
-
-ajuda na tomada de decisão financeira
+- centraliza todas as dívidas do usuário
+- simula juros compostos mês a mês
+- gera planos automáticos de quitação
+- aplica estratégias:
+  - Avalanche (maior juros primeiro)
+  - Snowball (menor saldo primeiro)
+- exibe projeções e gráficos
+- ajuda na tomada de decisão financeira
 
 🧩 Entidades do Sistema (5 obrigatórias)
-Usuário
 
-id
+**Usuário**
+- id
+- nome
+- email
+- senha
+- rendaMensal
 
-nome
+**Credor**
+- id
+- nome
+- contato
 
-email
+**Dívida**
+- id
+- usuario_id
+- credor_id
+- descricao
+- saldoAtual
+- taxaJurosAnual
+- parcelaMinima
+- vencimentoMensal
 
-senha
+**Pagamento**
+- id
+- divida_id
+- valor
+- tipo
+- observacao
+- data
 
-rendaMensal
-
-Credor
-
-id
-
-nome
-
-contato
-
-Dívida
-
-id
-
-usuario_id
-
-credor_id
-
-descricao
-
-saldoAtual
-
-taxaJurosAnual
-
-parcelaMinima
-
-vencimentoMensal
-
-Pagamento
-
-id
-
-divida_id
-
-valor
-
-tipo
-
-observacao
-
-data
-
-Plano de Quitação
-
-id
-
-usuario_id
-
-estrategia
-
-valorDisponivelMensal
-
-dataCriacao
+**Plano de Quitação**
+- id
+- usuario_id
+- estrategia
+- valorDisponivelMensal
+- dataCriacao
 
 🏃 Como Executar o Projeto
-1️⃣ Clonar o repositório
+
+1️⃣ **Clonar o repositório**
+```bash
 git clone <url>
 cd microplan
+```
 
-2️⃣ Criar o banco
+2️⃣ **Criar o banco**
+```sql
 CREATE DATABASE microplan CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
-3️⃣ Configurar o application.properties
+3️⃣ **Configurar o application.properties**
+```properties
 spring.datasource.url=jdbc:mysql://localhost:3306/microplan
 spring.datasource.username=root
 spring.datasource.password=sua_senha
+```
 
-4️⃣ Rodar
+4️⃣ **Executar a aplicação**
+```bash
 ./mvnw spring-boot:run
+```
 
-
-Acessar:
-http://localhost:8080
+🔗 **Acessar:**
+- Interface web: http://localhost:8080
 
 📡 API – CRUD
 
-Base URL: /api
+**Base URL:** `/api`
 
-Usuários
+**👤 Usuários**
+- `POST /usuarios/register` - Registrar novo usuário
+- `POST /usuarios/login` - Fazer login
+- `GET /usuarios` - Listar todos os usuários
+- `GET /usuarios/{id}` - Buscar usuário por ID
+- `PUT /usuarios/{id}` - Atualizar usuário
+- `DELETE /usuarios/{id}` - Excluir usuário
 
-POST /usuarios/register
+**🏦 Credores**
+- `POST /credores` - Criar credor
+- `GET /credores` - Listar credores
+- `PUT /credores/{id}` - Atualizar credor
+- `DELETE /credores/{id}` - Excluir credor
 
-POST /usuarios/login
+**💰 Dívidas**
+- `POST /dividas` - Criar dívida
+- `GET /dividas` - Listar todas as dívidas
+- `GET /dividas/usuario/{id}` - Dívidas de um usuário
+- `PUT /dividas/{id}` - Atualizar dívida
+- `DELETE /dividas/{id}` - Excluir dívida
 
-GET /usuarios
+**💳 Pagamentos**
+- `POST /pagamentos` - Registrar pagamento
+- `GET /pagamentos` - Listar pagamentos
+- `DELETE /pagamentos/{id}` - Excluir pagamento
 
-GET /usuarios/{id}
-
-PUT /usuarios/{id}
-
-DELETE /usuarios/{id}
-
-Credores
-
-POST /credores
-
-GET /credores
-
-PUT /credores/{id}
-
-DELETE /credores/{id}
-
-Dívidas
-
-POST /dividas
-
-GET /dividas
-
-GET /dividas/usuario/{id}
-
-PUT /dividas/{id}
-
-DELETE /dividas/{id}
-
-Pagamentos
-
-POST /pagamentos
-
-GET /pagamentos
-
-DELETE /pagamentos/{id}
-
-Planos de Quitação
-
-POST /planos/generate
-
-GET /planos/usuario/{id}
-
-GET /planos/{id}
-
-DELETE /planos/{id}
+**📊 Planos de Quitação**
+- `POST /planos/generate` - Gerar plano de quitação
+- `GET /planos/usuario/{id}` - Planos de um usuário
+- `GET /planos/{id}` - Buscar plano por ID
+- `DELETE /planos/{id}` - Excluir plano
 
 📈 Estratégias de Quitação
-Avalanche
 
-prioriza maior taxa de juros
+**Avalanche**
+- prioriza maior taxa de juros
+- reduz custo total
 
-reduz custo total
-
-Snowball
-
-prioriza menor saldo
-
-gera motivação inicial
+**Snowball**
+- prioriza menor saldo
+- gera motivação inicial
 
 🔐 Avisos
 
-Ferramenta educativa
-
-Não realiza operações financeiras reais
-
-Dados de exemplo são fictícios
+- Ferramenta educativa
+- Não realiza operações financeiras reais
+- Dados de exemplo são fictícios
 
 📚 Swagger
 
