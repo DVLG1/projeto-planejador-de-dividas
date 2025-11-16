@@ -282,6 +282,34 @@
     // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
       checkAuthentication();
+
+      // Handle floating labels
+      const inputs = document.querySelectorAll('.input-group input');
+      inputs.forEach(input => {
+        const label = input.nextElementSibling;
+        if (label && label.classList.contains('input-label')) {
+          function updateLabel() {
+            if (input.value.length > 0 || input === document.activeElement) {
+              label.style.top = '0.5rem';
+              label.style.fontSize = '0.8rem';
+              label.style.color = 'var(--primary)';
+              label.style.background = 'transparent';
+            } else {
+              label.style.top = '1.25rem';
+              label.style.fontSize = '1rem';
+              label.style.color = 'var(--slate-400)';
+              label.style.background = 'white';
+            }
+          }
+
+          input.addEventListener('input', updateLabel);
+          input.addEventListener('focus', updateLabel);
+          input.addEventListener('blur', updateLabel);
+
+          // Check initial state
+          updateLabel();
+        }
+      });
     });
   </script>
 </body>
