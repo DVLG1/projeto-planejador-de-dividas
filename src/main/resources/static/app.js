@@ -476,8 +476,8 @@ async function checkLoginSession() {
 
 // Add event listeners after DOM loads
 document.addEventListener('DOMContentLoaded', async function() {
-  if (window.location.pathname === '/login' || window.location.pathname === '/login.html') {
-    // Setup for login page
+  if (window.location.pathname === '/' || window.location.pathname === '/index' || window.location.pathname === '/index.html') {
+    // Setup for login page (index.html)
     const signupLink = document.getElementById('btn-signup-link');
     if (signupLink) {
       signupLink.addEventListener('click', showSignupModal);
@@ -493,7 +493,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Check session for app page
     const isLoggedIn = await checkLoginSession();
     if (!isLoggedIn) {
-      window.location.href = '/login.html';
+      window.location.href = '/';
       return;
     }
     // Add logout listener
@@ -505,7 +505,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Check session for app page
     const isLoggedIn = await checkLoginSession();
     if (!isLoggedIn) {
-      window.location.href = '/login';
+      window.location.href = '/';
       return;
     }
     // Add logout listener
@@ -637,7 +637,7 @@ function logoutForPage() {
   currentMode = null;
   localStorage.removeItem('loggedUserId');
   localStorage.removeItem('currentUser');
-  window.location.href = '/login.html';
+  window.location.href = '/';
 }
 
 function logout() {
