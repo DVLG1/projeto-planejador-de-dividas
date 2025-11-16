@@ -1,61 +1,50 @@
 📘 MicroPlan – Sistema de Planejamento e Quitação de Dívidas
 
-Aplicação web desenvolvida em Spring Boot + MySQL para ajudar usuários a entender, organizar e quitar suas dívidas de forma inteligente, usando estratégias demonstradas pela educação financeira moderna. O projeto foi criado como atividade avaliativa da disciplina A3.
+Aplicação web em Spring Boot + MySQL desenvolvida como atividade avaliativa A3.
+O objetivo é ajudar usuários a entender, organizar e quitar dívidas de forma inteligente.
 
-🏦 Tópico da FAQ do Banco Central (Tema Escolhido)
+🏦 Tópico da FAQ do Banco Central (Escolhido)
 
-Tema: Empréstimos e Endividamento – (FAQ do Banco Central do Brasil, seção Meu BC)
+Tema: Empréstimos e Endividamento (Meu BC – FAQ)
 
-📌 Problema Identificado no Tema
+📌 Problema Identificado
 
-Segundo o Banco Central, muitas pessoas entram em ciclos de endividamento por não compreenderem adequadamente:
+O Banco Central aponta que muitas pessoas caem em ciclos de endividamento por não entender:
 
-Como juros compostos funcionam
+juros compostos
 
-Como parcelas mínimas prolongam a dívida
+impacto da parcela mínima
 
-Como priorizar qual dívida pagar primeiro
+prioridade entre dívidas
 
-Como atrasos afetam o saldo total
+efeito dos atrasos
 
-Como falta de planejamento gera aumento de juros
+necessidade de planejamento
 
-Isso leva a um cenário de juros acumulados, descontrole financeiro e dificuldade de sair do endividamento.
+Isso resulta em mais juros, mais tempo endividado e perda de controle financeiro.
 
-🎯 Como o MicroPlan Resolve Esse Problema
+🎯 Solução Proposta (MicroPlan)
 
-O MicroPlan foi criado como uma solução tecnológica educativa para lidar com esse problema. Ele:
+O MicroPlan funciona como uma ferramenta educativa que:
 
-Centraliza todas as dívidas do usuário
+centraliza todas as dívidas do usuário
 
-Simula juros compostos mensalmente
+simula juros compostos mês a mês
 
-Gera planos automáticos de quitação
+gera planos automáticos de quitação
 
-Mostra a ordem ideal de pagamento usando:
+aplica estratégias:
 
-Avalanche (maior taxa de juros)
+Avalanche (maior juros primeiro)
 
 Snowball (menor saldo primeiro)
 
-Exibe gráficos de projeção
+exibe projeções e gráficos
 
-Ajuda o usuário a visualizar quanto pagará de juros
+ajuda na tomada de decisão financeira
 
-Mostra o impacto de pagamentos extras
-
-Fornece educação financeira aplicada
-
-Com isso, o usuário entende sua situação, toma decisões melhores e evita cair em armadilhas financeiras comuns.
-
-🧩 Modelagem do Sistema – Entidades (5 obrigatórias)
-
-O sistema utiliza 5 entidades principais, todas persistidas em MySQL com Spring Data JPA.
-
-1. Usuário
-
-Representa a pessoa cadastrada no sistema.
-Campos:
+🧩 Entidades do Sistema (5 obrigatórias)
+Usuário
 
 id
 
@@ -67,28 +56,15 @@ senha
 
 rendaMensal
 
-Relacionamento:
-1 Usuário → N Dívidas
-1 Usuário → N Planos
-
-2. Credor
-
-Instituição ou pessoa para quem o usuário deve.
-Campos:
+Credor
 
 id
 
 nome
 
-contato (opcional)
+contato
 
-Relacionamento:
-1 Credor → N Dívidas
-
-3. Dívida
-
-Registro de cada dívida do usuário.
-Campos:
+Dívida
 
 id
 
@@ -106,14 +82,7 @@ parcelaMinima
 
 vencimentoMensal
 
-Relacionamentos:
-1 Dívida → N Pagamentos
-Muitas dívidas → 1 Usuário e 1 Credor
-
-4. Pagamento
-
-Cada pagamento feito em uma dívida.
-Campos:
+Pagamento
 
 id
 
@@ -127,10 +96,7 @@ observacao
 
 data
 
-5. Plano de Quitação
-
-Resultado gerado pela simulação (Avalanche ou Snowball).
-Campos:
+Plano de Quitação
 
 id
 
@@ -142,230 +108,117 @@ valorDisponivelMensal
 
 dataCriacao
 
-🗂 Diagrama de Relacionamento (ER Simplificado)
-Usuário (1) ---- (N) Dívida (N) ---- (1) Credor
-     |                  
-     | (1)  
-     +---- (N) Plano
-     
-Dívida (1) ---- (N) Pagamento
-
-🚀 Objetivo do MicroPlan
-
-Fornecer gratuitamente uma ferramenta educativa que ajude usuários a:
-
-Entender como juros impactam suas dívidas
-
-Simular cenários de pagamento
-
-Tomar decisões com base em matemática financeira
-
-Visualizar seu progresso e reduzir a ansiedade
-
-Sair do endividamento de forma mais rápida e estratégica
-
-🛠 Tecnologias Utilizadas
-
-Java 17
-
-Spring Boot 3
-
-Spring MVC
-
-Spring Data JPA (Hibernate)
-
-MySQL 8
-
-Flyway (migrações)
-
-HTML + CSS + JS (Frontend simples)
-
-Swagger (documentação da API)
-
-🏃 Como Executar o Projeto Localmente
+🏃 Como Executar o Projeto
 1️⃣ Clonar o repositório
-git clone <url-do-repositorio>
+git clone <url>
 cd microplan
 
-2️⃣ Criar banco de dados
+2️⃣ Criar o banco
 CREATE DATABASE microplan CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-3️⃣ Configurar MySQL em application.properties
+3️⃣ Configurar o application.properties
 spring.datasource.url=jdbc:mysql://localhost:3306/microplan
 spring.datasource.username=root
 spring.datasource.password=sua_senha
 
-4️⃣ Rodar com Maven
+4️⃣ Rodar
 ./mvnw spring-boot:run
 
 
-Servidor iniciará em:
-👉 http://localhost:8080
+Acessar:
+http://localhost:8080
 
-🌱 Seed de Dados (opcional para testes)
-INSERT INTO usuarios (nome, email, senha, renda_mensal)
-VALUES ('Usuário Teste', 'teste@gmail.com', '123', 5000);
+📡 API – CRUD
 
-INSERT INTO credores (nome) VALUES ('Nubank'), ('Santander');
+Base URL: /api
 
-INSERT INTO dividas (usuario_id, credor_id, descricao, saldo_atual, taxa_juros_anual, parcela_minima, vencimento_mensal)
-VALUES
-(1, 1, 'Cartão de Crédito', 3000, 400, 200, 10),
-(1, 2, 'Empréstimo Pessoal', 50000, 20, 300, 10);
+Usuários
 
-📡 Documentação da API – CRUD Completo
+POST /usuarios/register
 
-Base URL:
+POST /usuarios/login
 
-http://localhost:8080/api
+GET /usuarios
 
-👤 Usuários
-Criar usuário (POST)
-{
-  "nome": "João",
-  "email": "joao@email.com",
-  "senha": "123",
-  "rendaMensal": 3500
-}
+GET /usuarios/{id}
 
-Listar usuários (GET)
+PUT /usuarios/{id}
 
-/usuarios
+DELETE /usuarios/{id}
 
-Buscar por ID (GET)
+Credores
 
-/usuarios/{id}
+POST /credores
 
-Editar usuário (PUT)
+GET /credores
 
-/usuarios/{id}
+PUT /credores/{id}
 
-Excluir usuário (DELETE)
+DELETE /credores/{id}
 
-/usuarios/{id}
+Dívidas
 
-🏦 Credores
-Criar credor (POST)
-{
-  "nome": "Banco XPTO",
-  "contato": "contato@xpto.com"
-}
+POST /dividas
 
-Listar credores (GET)
+GET /dividas
 
-/credores
+GET /dividas/usuario/{id}
 
-Editar credor (PUT)
+PUT /dividas/{id}
 
-/credores/{id}
+DELETE /dividas/{id}
 
-Excluir credor (DELETE)
+Pagamentos
 
-/credores/{id}
+POST /pagamentos
 
-💰 Dívidas
-Criar dívida (POST)
-{
-  "usuario": { "id": 1 },
-  "credor": { "id": 1 },
-  "descricao": "Carro Financiado",
-  "saldoAtual": 120000,
-  "taxaJurosAnual": 18,
-  "parcelaMinima": 600,
-  "vencimentoMensal": 10
-}
+GET /pagamentos
 
-Listar dívidas (GET)
+DELETE /pagamentos/{id}
 
-/dividas
+Planos de Quitação
 
-Dívidas por usuário (GET)
+POST /planos/generate
 
-/dividas/usuario/{id}
+GET /planos/usuario/{id}
 
-Editar dívida (PUT)
+GET /planos/{id}
 
-/dividas/{id}
+DELETE /planos/{id}
 
-Excluir dívida (DELETE)
+📈 Estratégias de Quitação
+Avalanche
 
-/dividas/{id}
+prioriza maior taxa de juros
 
-🧾 Pagamentos
-Criar pagamento (POST)
+reduz custo total
 
-/pagamentos
+Snowball
 
-{
-  "divida": { "id": 1 },
-  "valor": 200,
-  "tipo": "EXTRA",
-  "observacao": "Pagamento adicional"
-}
+prioriza menor saldo
 
-Listar pagamentos (GET)
+gera motivação inicial
 
-/pagamentos
+🔐 Avisos
 
-Excluir pagamento (DELETE)
+Ferramenta educativa
 
-/pagamentos/{id}
+Não realiza operações financeiras reais
 
-📊 Planos de Quitação
-Gerar plano (POST)
-{
-  "usuarioId": 1,
-  "valorDisponivelMensal": 1700,
-  "estrategia": "AVALANCHE"
-}
+Dados de exemplo são fictícios
 
-Listar planos do usuário (GET)
+📚 Swagger
 
-/planos/usuario/{id}
-
-Ver um plano por ID (GET)
-
-/planos/{id}
-
-Excluir plano (DELETE)
-
-/planos/{id}
-
-📈 Estratégias Implementadas
-🔥 Avalanche (Maior Juros Primeiro)
-
-Foca na dívida mais cara
-
-Reduz o custo total dos juros
-
-Mais eficiente financeiramente
-
-❄️ Snowball (Menor Saldo Primeiro)
-
-Gera vitórias rápidas
-
-Ajuda no psicológico e motivação
-
-🔐 Avisos Importantes
-
-O MicroPlan é uma ferramenta educacional
-
-Não realiza movimentações financeiras
-
-Não oferece crédito
-
-Não substitui orientação profissional
-
-Dados de teste são completamente fictícios
-
-📚 Acesso à Documentação Swagger
 http://localhost:8080/swagger-ui.html
 
-🤝 Contribuições
+🎓 Equipe
 
-Pull Requests são bem-vindas.
-Este projeto foi desenvolvido para fins acadêmicos.
+Davi Latif Grecco – RA 942413665
 
-🎓 Integrantes da Equipe
+Vinicius Berbert de Lima – RA 942421547
 
-Davi Latif Grecco- RA:942413665 | Vinicius Berbert de Lima - RA:942421547 |Christian Emanuel Alves Cordeiro - RA:942416080 | Thiago Henrique Spejorim - RA:942414099 | Gustavo Mendes - RA:942410482 
+Christian Emanuel Alves Cordeiro – RA 942416080
+
+Thiago Henrique Spejorim – RA 942414099
+
+Gustavo Mendes – RA 942410482
