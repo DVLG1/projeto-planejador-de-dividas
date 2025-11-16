@@ -33,6 +33,9 @@ public class PlanoQuitacao {
     @Column(columnDefinition = "LONGTEXT")
     private String detalhes;
 
+    @Column(columnDefinition = "LONGTEXT")
+    private String grafico;
+
     // Getters e Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -60,4 +63,7 @@ public class PlanoQuitacao {
 
     public String getDetalhes() { return detalhes; }
     public void setDetalhes(String detalhes) { this.detalhes = detalhes; }
+
+    public String getGrafico() { return grafico; }
+    public void setGrafico(String grafico) { this.grafico = grafico; }
 }

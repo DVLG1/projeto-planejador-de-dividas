@@ -37,6 +37,20 @@ public class PlanoService {
 
     @Transactional
     public PlanoQuitacao gerarPlano(GeneratePlanRequest req) throws Exception {
+        // Deleta planos existentes do usuário antes de criar um novo
+        List<PlanoQuitacao> planosExistentes = planoRepo.findByUsuarioId(req.getUsuarioId());
+        for (PlanoQuitacao p : planosExistentes) {
+            planoRepo.delete(p);
+        }
+
+        // Validações iniciais
+        if (req == null || req.getUsuarioId() == null) throw new Exception("Dados da requisição inválidos");
+        if (req.getValorDisponivelMensal() == null || req.getValorDisponivelMensal().compareTo(BigDecimal.ZERO) <= 0)
+            throw new Exception("valorDisponivelMensal deve ser positivo");
+        if (req.getEstrategia() == null || (!"AVALANCHE".equalsIgnoreCase(req.getEstrategia()) && !"SNOWBALL".equalsIgnoreCase(req.getEstrategia()))) {
+            req.setEstrategia("AVALANCHE"); // Valor padrão
+        }
+
         Optional<Usuario> uOpt = usuarioRepo.findById(req.getUsuarioId());
         if (uOpt.isEmpty()) throw new Exception("Usuário não encontrado");
 
@@ -48,8 +62,6 @@ public class PlanoService {
         if (dividas.isEmpty()) throw new Exception("Usuário não tem dívidas ativas");
 
         BigDecimal disponivel = req.getValorDisponivelMensal();
-        if (disponivel == null || disponivel.compareTo(BigDecimal.ZERO) <= 0)
-            throw new Exception("valorDisponivelMensal deve ser positivo");
 
         BigDecimal somaMinimas = dividas.stream()
                 .map(d -> d.getParcelaMinima() == null ? BigDecimal.ZERO : d.getParcelaMinima())
@@ -81,6 +93,8 @@ public class PlanoService {
 
         List<DividaSim> sims = dividas.stream().map(DividaSim::new).toList();
 
+
+
         Comparator<DividaSim> comparator =
                 "SNOWBALL".equalsIgnoreCase(req.getEstrategia())
                         ? Comparator.comparing(d -> d.saldo)
@@ -93,7 +107,7 @@ public class PlanoService {
 
         int mes = 0;
 
-        while (sims.stream().anyMatch(s -> s.saldo.compareTo(BigDecimal.ZERO) > 0) && mes < 360) {
+        while (sims.stream().anyMatch(s -> s.saldo.compareTo(BigDecimal.ZERO) > 0) && mes < 120) {
             mes++;
 
             ObjectNode mesNode = objectMapper.createObjectNode();
@@ -213,7 +227,56 @@ public class PlanoService {
         }
 
         String detalhesJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(cronograma);
-        System.out.println("DEBUG: Detalhes JSON: " + detalhesJson);
+
+        // Gerar dados do gráfico
+        Map<Long, Map<String, Object>> balanceMap = new HashMap<>();
+        for (ObjectNode mesNode : cronograma) {
+            ArrayNode dividasNode = (ArrayNode) mesNode.get("dividas");
+            if (dividasNode != null) {
+                for (int i = 0; i < dividasNode.size(); i++) {
+                    ObjectNode dNode = (ObjectNode) dividasNode.get(i);
+                    long id = dNode.get("id").asLong();
+                    String descricao = dNode.get("descricao").asText();
+                    double saldo = dNode.get("saldo").asDouble();
+                    balanceMap.computeIfAbsent(id, k -> {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("descricao", descricao);
+                        map.put("balances", new ArrayList<Double>());
+                        return map;
+                    });
+                    @SuppressWarnings("unchecked")
+                    List<Double> balances = (List<Double>) balanceMap.get(id).get("balances");
+                    balances.add(saldo);
+                }
+            }
+        }
+
+        // Converter para JSON do gráfico
+        ObjectNode graficoNode = objectMapper.createObjectNode();
+        ArrayNode debtsArray = objectMapper.createArrayNode();
+        for (Map.Entry<Long, Map<String, Object>> entry : balanceMap.entrySet()) {
+            Map<String, Object> debtMap = entry.getValue();
+            ObjectNode debtNode = objectMapper.createObjectNode();
+            debtNode.put("id", entry.getKey());
+            debtNode.put("descricao", (String) debtMap.get("descricao"));
+            @SuppressWarnings("unchecked")
+            List<Double> balances = (List<Double>) debtMap.get("balances");
+            ArrayNode balanceArray = objectMapper.createArrayNode();
+            for (Double bal : balances) {
+                balanceArray.add(bal);
+            }
+            debtNode.set("balances", balanceArray);
+            debtsArray.add(debtNode);
+        }
+        graficoNode.set("debts", debtsArray);
+        String graficoJson;
+        try {
+            graficoJson = objectMapper.writeValueAsString(graficoNode);
+            System.out.println("DEBUG: graficoJson = " + graficoJson);
+        } catch (Exception e) {
+            System.out.println("ERROR: Failed to serialize grafico: " + e.getMessage());
+            graficoJson = "{}"; // fallback empty JSON
+        }
 
         PlanoQuitacao plano = new PlanoQuitacao();
         plano.setUsuario(uOpt.get());
@@ -224,6 +287,8 @@ public class PlanoService {
         plano.setTotalPagoEstimado(totalPago);
         plano.setCustoTotalJuros(totalJuros);
         plano.setDetalhes(detalhesJson);
+        plano.setGrafico(graficoJson);
+        System.out.println("DEBUG: Before save, plano.getGrafico() = " + plano.getGrafico());
 
         planoRepo.save(plano);
         return plano;
@@ -266,6 +331,7 @@ public class PlanoService {
         existente.setTotalPagoEstimado(simulado.getTotalPagoEstimado());
         existente.setCustoTotalJuros(simulado.getCustoTotalJuros());
         existente.setDetalhes(simulado.getDetalhes());
+        existente.setGrafico(simulado.getGrafico());
 
         planoRepo.save(existente);
         // Remove o plano "simulado" recém criado para não duplicar registros

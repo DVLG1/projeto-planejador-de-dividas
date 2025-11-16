@@ -800,16 +800,31 @@ async function renderMeuPlano() {
   }
 
   // Check for existing plans
-  let existingPlan;
+  let existingPlan, existingChart, existingDetails;
   if (temDividas) {
     try {
+      console.log('Checking for existing plans for user:', currentUser.id);
       const res = await fetch(`${API_BASE}/planos/usuario/${currentUser.id}`);
       const planos = await res.json();
+      console.log('Plans response:', planos);
       if (Array.isArray(planos) && planos.length > 0) {
         existingPlan = planos[planos.length - 1];
+        console.log('Existing plan:', existingPlan);
+        console.log('Existing plan has grafico field:', existingPlan.grafico !== undefined);
+        console.log('Existing plan grafico value:', existingPlan.grafico);
+        if (existingPlan.grafico) {
+          existingChart = JSON.parse(existingPlan.grafico);
+          console.log('Existing chart loaded');
+        }
+        if (existingPlan.detalhes) {
+          existingDetails = JSON.parse(existingPlan.detalhes);
+          console.log('Existing details loaded');
+        }
+      } else {
+        console.log('No existing plans found');
       }
     } catch (e) {
-      console.log('No existing plans:', e);
+      console.log('No existing plans error:', e);
     }
   }
 
@@ -838,23 +853,27 @@ async function renderMeuPlano() {
     ${existingPlan ? `
       <div id="existing-plan-section">
         <h4>Plano Existente (Último Plano)</h4>
-        <p><strong>Estratégia:</strong> ${existingPlan.estrategia}</p>
-        <p><strong>Valor Disponível Mensal:</strong> R$ ${existingPlan.valorDisponivelMensal}</p>
-        <p><strong>Duração Estimada:</strong> ${existingPlan.duracaoEstimadaMeses} meses</p>
-        <p><strong>Total Estimado a Pagar:</strong> R$ ${existingPlan.totalPagoEstimado}</p>
-        <p><strong>Custo Total de Juros:</strong> R$ ${existingPlan.custoTotalJuros}</p>
+        ${existingChart ? `<div id="saved-chart" style="display: flex; flex-wrap: wrap; gap: 20px;"></div>` : ''}
+        ${existingDetails ? `<div id="saved-table"></div>` : ''}
       </div>` : ''}
 
       <div id="plano-resultado" style="display: none;">
         <h4>Resultado do Plano</h4>
         <div id="plano-charts" style="display: flex; flex-wrap: wrap; gap: 20px;"></div>
-        <h4>Cronograma Detalhado</h4>
         <div id="plano-table"></div>
       </div>
     `;
   }
 
   page.appendChild(container);
+
+  // Render saved chart and table if existing
+  if (existingChart && existingPlan) {
+    await renderSavedChart(existingChart);
+  }
+  if (existingDetails && existingPlan) {
+    renderPlanoTable({ ...existingPlan }, existingDetails);
+  }
 
   // Add event listener for generate button only if there are debts - delayed to ensure DOM rendering
   if (temDividas) {
@@ -895,13 +914,17 @@ async function renderMeuPlano() {
             };
             console.log('Sending payload:', payload); // Debug log
 
+            console.log('About to fetch:', `${API_BASE}/planos/generate`);
             const res = await fetch(`${API_BASE}/planos/generate`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
 
+            console.log('Fetch response status:', res.status);
             const json = await res.json();
+            console.log('Response JSON:', json);
+
             if (!res.ok) {
               alert('Erro ao gerar plano: ' + (json.error || 'Erro desconhecido'));
               return;
@@ -912,12 +935,37 @@ async function renderMeuPlano() {
             try {
               detalhes = JSON.parse(json.detalhes);
             } catch (e) {
+              console.error('Error parsing detalhes:', e);
               detalhes = [];
             }
 
-            // Render chart and table
-            renderPlanoChart(json, detalhes);
-            renderPlanoTable(json, detalhes);
+            // Render chart and table - replace existing content if present
+            if (existingPlan) {
+              // Update summary text in existing-plan-section and re-render charts/table inside it
+              const existingPlanSection = document.getElementById('existing-plan-section');
+              if (existingPlanSection) {
+                existingPlanSection.innerHTML = `
+                  <h4>Plano (Atualizado)</h4>
+                  <div id="saved-chart" style="display: flex; flex-wrap: wrap; gap: 20px;"></div>
+                  <div id="saved-table"></div>
+                `;
+                // Render in the new elements
+                const newSavedChart = document.getElementById('saved-chart');
+                await renderPlanoChartInContainer(json, detalhes, newSavedChart);
+                const newSavedTable = document.getElementById('saved-table');
+                renderPlanoTableContent(json, detalhes, newSavedTable);
+              }
+            } else {
+              // First time generating, use plano-resultado section
+              const resultDiv = document.getElementById('plano-resultado');
+              if (resultDiv) {
+                resultDiv.style.display = 'block';
+              }
+              await renderPlanoChart(json, detalhes);
+              renderPlanoTable(json, detalhes);
+            }
+
+            console.log('Plan generation completed successfully');
 
           } catch (e) {
             console.error('Error in plan generation:', e);
@@ -948,9 +996,123 @@ function getChartColor(index) {
   return chartColors[index % chartColors.length];
 }
 
-function renderPlanoChart(plano, detalhes) {
+async function renderSavedChart(graficoData) {
+  const chartsContainer = document.getElementById('saved-chart');
+  chartsContainer.innerHTML = ''; // Clear any existing charts
+
+  // Fetch initial balances
+  const initialBalances = {};
+  if (currentUser && currentUser.id) {
+    try {
+      const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+      const dividas = await res.json();
+      dividas.forEach(d => {
+        if (d && d.id !== undefined) {
+          initialBalances[d.id] = d.saldoAtual;
+        }
+      });
+    } catch (e) {
+      console.error('Error fetching initial balances:', e);
+    }
+  }
+
+  const debts = graficoData.debts || [];
+  const labels = debts[0] ? debts[0].balances.map((_, idx) => `Mês ${idx}`) : []; // Start from 0
+
+  let colorIndex = 0;
+  debts.forEach(debt => {
+    const chartDiv = document.createElement('div');
+    chartDiv.style.flex = '1 1 45%';
+    chartDiv.style.minWidth = '400px';
+
+    const title = document.createElement('h5');
+    title.textContent = debt.descricao || debt.id;
+    chartDiv.appendChild(title);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = '400';
+    canvas.height = '200';
+    chartDiv.appendChild(canvas);
+
+    chartsContainer.appendChild(chartDiv);
+
+    // Prepend initial balance to data
+    const initial = initialBalances[debt.id] || 0;
+    const data = [initial].concat(debt.balances || []);
+
+    new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: debt.descricao || debt.id,
+          data: data,
+          borderColor: getChartColor(colorIndex),
+          backgroundColor: getChartColor(colorIndex).replace('rgb', 'rgba').replace(')', ', 0.1)'),
+          tension: 0.4,
+          fill: false,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Meses'
+            }
+          },
+          y: {
+            beginAtZero: false,
+            title: {
+              display: true,
+              text: 'Saldo Remanescente (R$)'
+            },
+            ticks: {
+              callback: function(value) {
+                return 'R$ ' + value.toLocaleString();
+              }
+            }
+          }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+              }
+            }
+          },
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+    colorIndex++;
+  });
+}
+
+async function renderPlanoChart(plano, detalhes) {
   const chartsContainer = document.getElementById('plano-charts');
   chartsContainer.innerHTML = ''; // Clear any existing charts
+
+  // Fetch initial balances
+  const initialBalances = {};
+  if (currentUser && currentUser.id) {
+    try {
+      const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+      const dividas = await res.json();
+      dividas.forEach(d => {
+        if (d && d.id !== undefined) {
+          initialBalances[d.id] = d.saldoAtual;
+        }
+      });
+    } catch (e) {
+      console.error('Error fetching initial balances:', e);
+    }
+  }
 
   // Collect balance data across months for each debt
   const balanceMap = {}; // id -> {descricao, balances: [month1_balance, ...]}
@@ -966,7 +1128,13 @@ function renderPlanoChart(plano, detalhes) {
     });
   });
 
-  const labels = detalhes.map(d => `Mês ${d.mes}`);
+  // Prepend initial balances
+  Object.keys(balanceMap).forEach(id => {
+    const initial = initialBalances[id] || 0;
+    balanceMap[id].balances = [initial].concat(balanceMap[id].balances);
+  });
+
+  const labels = detalhes.map((_, idx) => `Mês ${idx}`); // Start from 0
 
   // Create a separate chart for each debt
   let colorIndex = 0;
@@ -1047,17 +1215,10 @@ function renderPlanoTable(plano, detalhes) {
   const tableContainer = document.getElementById('plano-table');
   tableContainer.innerHTML = '';
 
-  // Plan summary
-  const summaryDiv = document.createElement('div');
-  summaryDiv.innerHTML = `
-    <h4>Resumo do Plano</h4>
-    <p><strong>Estratégia:</strong> ${plano.estrategia}</p>
-    <p><strong>Duração Estimada:</strong> ${plano.duracaoEstimadaMeses} meses</p>
-    <p><strong>Total Estimado a Pagar:</strong> R$ ${plano.totalPagoEstimado}</p>
-    <p><strong>Custo Total de Juros:</strong> R$ ${plano.custoTotalJuros}</p>
-  `;
-  tableContainer.appendChild(summaryDiv);
+  renderPlanoTableContent(plano, detalhes, tableContainer);
+}
 
+function renderPlanoTableContent(plano, detalhes, tableContainer) {
   // Detailed table
   if (Array.isArray(detalhes) && detalhes.length > 0) {
     const headers = ['Mês', 'Saldo Inicial', 'Juros', 'Parcela', 'Pagamento Extra', 'Pagamento Total', 'Saldo Final'];
@@ -1092,6 +1253,120 @@ function renderPlanoTable(plano, detalhes) {
   } else {
     tableContainer.appendChild(document.createElement('p')).textContent = 'Detalhes não disponíveis.';
   }
+}
+
+async function renderPlanoChartInContainer(plano, detalhes, container) {
+  // Fetch initial balances
+  const initialBalances = {};
+  if (currentUser && currentUser.id) {
+    try {
+      const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+      const dividas = await res.json();
+      dividas.forEach(d => {
+        if (d && d.id !== undefined) {
+          initialBalances[d.id] = d.saldoAtual;
+        }
+      });
+    } catch (e) {
+      console.error('Error fetching initial balances:', e);
+    }
+  }
+
+  // Collect balance data across months for each debt
+  const balanceMap = {}; // id -> {descricao, balances: [month1_balance, ...]}
+
+  detalhes.forEach(d => {
+    const dividas = d.dividas || [];
+    dividas.forEach(debt => {
+      const id = debt.id;
+      if (!balanceMap[id]) {
+        balanceMap[id] = { descricao: debt.descricao, balances: [] };
+      }
+      balanceMap[id].balances.push(debt.saldo);
+    });
+  });
+
+  // Prepend initial balances
+  Object.keys(balanceMap).forEach(id => {
+    const initial = initialBalances[id] || 0;
+    balanceMap[id].balances = [initial].concat(balanceMap[id].balances);
+  });
+
+  const labels = detalhes.map((_, idx) => `Mês ${idx}`); // Start from 0
+
+  // Create a separate chart for each debt
+  let colorIndex = 0;
+  Object.values(balanceMap).forEach(debt => {
+    // Create chart container
+    const chartDiv = document.createElement('div');
+    chartDiv.style.flex = '1 1 45%';
+    chartDiv.style.minWidth = '400px';
+
+    const title = document.createElement('h5');
+    title.textContent = debt.descricao;
+    chartDiv.appendChild(title);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = '400';
+    canvas.height = '200';
+    chartDiv.appendChild(canvas);
+
+    container.appendChild(chartDiv);
+
+    // Create individual chart
+    new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: debt.descricao,
+          data: debt.balances,
+          borderColor: getChartColor(colorIndex),
+          backgroundColor: getChartColor(colorIndex).replace('rgb', 'rgba').replace(')', ', 0.1)'),
+          tension: 0.4,
+          fill: false,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Meses'
+            }
+          },
+          y: {
+            beginAtZero: false,
+            title: {
+              display: true,
+              text: 'Saldo Remanescente (R$)'
+            },
+            ticks: {
+              callback: function(value) {
+                return 'R$ ' + value.toLocaleString();
+              }
+            }
+          }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+              }
+            }
+          },
+          legend: {
+            display: false // No legend needed since each chart is for one debt
+          }
+        }
+      }
+    });
+
+    colorIndex++;
+  });
 }
 
 function showAddDividaForm() {

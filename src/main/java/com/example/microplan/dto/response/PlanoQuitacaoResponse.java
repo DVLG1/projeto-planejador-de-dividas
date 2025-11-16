@@ -14,6 +14,7 @@ public class PlanoQuitacaoResponse {
     private BigDecimal totalPagoEstimado;
     private BigDecimal custoTotalJuros;
     private String detalhes;
+    private String grafico;
 
     public static PlanoQuitacaoResponse from(PlanoQuitacao p) {
         PlanoQuitacaoResponse r = new PlanoQuitacaoResponse();
@@ -26,6 +27,7 @@ public class PlanoQuitacaoResponse {
         r.totalPagoEstimado = p.getTotalPagoEstimado();
         r.custoTotalJuros = p.getCustoTotalJuros();
         r.detalhes = p.getDetalhes();
+        r.grafico = p.getGrafico();
         return r;
     }
 
@@ -38,4 +40,5 @@ public class PlanoQuitacaoResponse {
     public BigDecimal getTotalPagoEstimado() { return totalPagoEstimado; }
     public BigDecimal getCustoTotalJuros() { return custoTotalJuros; }
     public String getDetalhes() { return detalhes; }
+    public String getGrafico() { return grafico; }
 }

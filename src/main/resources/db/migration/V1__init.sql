@@ -48,6 +48,7 @@ CREATE TABLE planos (
   total_pago_estimado DECIMAL(40,2) NOT NULL,
   custo_total_juros DECIMAL(40,2) NOT NULL,
   detalhes LONGTEXT NULL,
+  grafico LONGTEXT NULL,
   CONSTRAINT fk_plano_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
