@@ -3,8 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Microplan - Dashboard</title>
+  <title>Microplan - Seu Planejador Financeiro</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 </head>
 <body>
   <!-- App Container -->
@@ -15,8 +19,13 @@
         <span class="brand-text">Microplan</span>
       </div>
       <div class="nav-actions">
-        <span id="user-info"></span>
-        <button id="logout-btn" class="btn btn-secondary">Sair</button>
+        <span id="user-info">
+          <i class="ri-user-line" style="margin-right: 0.5rem;"></i>
+        </span>
+        <button id="logout-btn" class="btn">
+          <i class="ri-logout-box-line"></i>
+          Sair
+        </button>
       </div>
     </nav>
 
@@ -29,7 +38,10 @@
 
       <main class="app-content">
         <header class="app-header">
-          <h2 id="page-title">Dashboard</h2>
+          <h2 id="page-title">
+            <i class="ri-dashboard-line" style="margin-right: 0.75rem;"></i>
+            Dashboard
+          </h2>
           <div id="header-actions"></div>
         </header>
 

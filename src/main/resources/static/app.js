@@ -677,9 +677,18 @@ function showMainScreen() {
 
 function setupUserMenu() {
   navMenu.innerHTML = `
-    <button onclick="navigate('home')">Dashboard</button>
-    <button onclick="navigate('minhas-dividas')">Minhas Dívidas</button>
-    <button onclick="navigate('plano-usuario')">Meu Plano</button>
+    <button onclick="navigate('home')">
+      <i class="ri-dashboard-line"></i>
+      Dashboard
+    </button>
+    <button onclick="navigate('minhas-dividas')">
+      <i class="ri-money-dollar-box-line"></i>
+      Minhas Dívidas
+    </button>
+    <button onclick="navigate('plano-usuario')">
+      <i class="ri-file-chart-line"></i>
+      Meu Plano
+    </button>
   `;
 }
 
@@ -870,6 +879,13 @@ async function renderMeuPlano() {
   // Render saved chart and table if existing
   if (existingChart && existingPlan) {
     await renderSavedChart(existingChart);
+    // Add instructions to existing plan chart
+    const savedChartEl = document.getElementById('saved-chart');
+    if (savedChartEl) {
+      const instructionsDiv = document.createElement('div');
+      instructionsDiv.innerHTML = await createPaymentInstructions(existingPlan, existingDetails);
+      savedChartEl.insertBefore(instructionsDiv, savedChartEl.firstChild);
+    }
   }
   if (existingDetails && existingPlan) {
     renderPlanoTable({ ...existingPlan }, existingDetails);
@@ -954,6 +970,10 @@ async function renderMeuPlano() {
                 await renderPlanoChartInContainer(json, detalhes, newSavedChart);
                 const newSavedTable = document.getElementById('saved-table');
                 renderPlanoTableContent(json, detalhes, newSavedTable);
+                // Add instructions to saved chart
+                const instructionsDiv = document.createElement('div');
+                instructionsDiv.innerHTML = await createPaymentInstructions(json, detalhes);
+                newSavedChart.insertBefore(instructionsDiv, newSavedChart.firstChild);
               }
             } else {
               // First time generating, use plano-resultado section
@@ -994,6 +1014,89 @@ const chartColors = [
 
 function getChartColor(index) {
   return chartColors[index % chartColors.length];
+}
+
+async function createPaymentInstructions(plano, detalhes) {
+  const estrategia = plano.estrategia;
+  const estrategiaNome = estrategia === 'AVALANCHE' ? 'Avalanche (maior juros primeiro)' : 'Snowball (menor saldo primeiro)';
+
+  // Fetch original debt amounts from API (before any payments)
+  let originalDebts = [];
+  if (currentUser && currentUser.id) {
+    try {
+      const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+      const dividas = await res.json();
+      originalDebts = Array.isArray(dividas) ? dividas : [];
+    } catch (e) {
+      console.error('Error fetching original debts:', e);
+    }
+  }
+
+  // Create map of original debts
+  const debtsMap = {};
+  originalDebts.forEach(debt => {
+    if (debt && debt.id) {
+      debtsMap[debt.id] = {
+        id: debt.id,
+        descricao: debt.descricao || 'Dívida ' + debt.id,
+        saldo: debt.saldoAtual || 0,
+        taxa: debt.taxaJurosAnual || 0
+      };
+    }
+  });
+
+  const debts = Object.values(debtsMap);
+  // Sort debts based on strategy
+  if (estrategia === 'AVALANCHE') {
+    debts.sort((a, b) => b.taxa - a.taxa); // Higher interest first
+  } else { // SNOWBALL
+    debts.sort((a, b) => a.saldo - b.saldo); // Lower balance first
+  }
+
+  let debtOrderHtml = `<h5 style="margin-top: 15px; margin-bottom: 10px;">Ordem de prioridade das dívidas</h5><ol>`;
+  debts.forEach((debt, index) => {
+    const jurosMensais = (parseFloat(debt.saldo) * parseFloat(debt.taxa) / 100 / 12).toFixed(0);
+    let motivo = '';
+
+    if (estrategia === 'AVALANCHE') {
+      if (index === 0) {
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de R$ ${jurosMensais} por mês. É a dívida que mais cresce e causa o maior impacto no total de juros.`;
+      } else if (index === 1) {
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de R$ ${jurosMensais} por mês. Apesar do saldo ${debts[0].saldo > debt.saldo ? 'menor' : 'maior'}, o custo mensal de juros é menor que o da primeira dívida, então fica em segundo.`;
+      } else {
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, juros mensais na faixa de R$ ${jurosMensais}. Não cresce tão rápido quanto as anteriores, então só entra na fila depois que eles forem eliminados.`;
+      }
+    } else { // SNOWBALL
+      if (index === 0) {
+        motivo = `saldo menor (R$ ${parseFloat(debt.saldo).toFixed(2)}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Estratégia Snowball prioriza quitar primeiro as dívidas menores para criar motivação com vitórias rápidas.`;
+      } else if (index === 1) {
+        motivo = `saldo médio (R$ ${parseFloat(debt.saldo).toFixed(2)}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Menor que as anteriores, mas depois de quitar a primeira.`;
+      } else {
+        motivo = `saldo maior (R$ ${parseFloat(debt.saldo).toFixed(2)}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Mesmo com saldo grande, fica por último para manter o foco nas dívidas menores primeiro.`;
+      }
+    }
+
+    debtOrderHtml += `<li><strong>${debt.descricao}</strong>. Saldo R$ ${parseFloat(debt.saldo).toFixed(2)}. <strong>Motivo:</strong> ${motivo}</li>`;
+  });
+  debtOrderHtml += `</ol>`;
+
+  let instructions = `<div class="payment-instructions" style="margin-bottom: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 5px; border-left: 4px solid #007bff;">
+    <h4 style="color: #007bff; margin-bottom: 10px;">Como pagar a dívida da maneira mais eficiente:</h4>
+    <p><strong>Estratégia utilizada:</strong> ${estrategiaNome}</p>
+    <p>Esta estratégia recomenda que você siga esta ordem de prioridade:</p>
+    ${debtOrderHtml}
+    <p><strong>Como executar o plano:</strong></p>
+    <ul>
+      <li>Use o valor mensal disponível (R$ ${parseFloat(plano.valorDisponivelMensal).toFixed(2)}) para pagamentos</li>
+      <li>Após quitar uma dívida, direcione o valor adicional para as próximas da lista</li>
+      <li>O gráfico abaixo mostra a projeção de quitação ao longo dos meses</li>
+    </ul>
+    ${plano.duracaoEstimadaMeses ? `<p><strong>Duração estimada:</strong> ${plano.duracaoEstimadaMeses} meses</p>` : ''}
+    ${plano.totalPagoEstimado ? `<p><strong>Total pago estimado:</strong> R$ ${parseFloat(plano.totalPagoEstimado).toFixed(2)}</p>` : ''}
+    ${plano.custoTotalJuros ? `<p><strong>Total de juros pagos:</strong> R$ ${parseFloat(plano.custoTotalJuros).toFixed(2)}</p>` : ''}
+  </div>`;
+
+  return instructions;
 }
 
 async function renderSavedChart(graficoData) {
@@ -1097,6 +1200,11 @@ async function renderSavedChart(graficoData) {
 async function renderPlanoChart(plano, detalhes) {
   const chartsContainer = document.getElementById('plano-charts');
   chartsContainer.innerHTML = ''; // Clear any existing charts
+
+  // Add payment instructions before charts
+  const instructionsDiv = document.createElement('div');
+  instructionsDiv.innerHTML = await createPaymentInstructions(plano, detalhes);
+  chartsContainer.appendChild(instructionsDiv);
 
   // Fetch initial balances
   const initialBalances = {};
