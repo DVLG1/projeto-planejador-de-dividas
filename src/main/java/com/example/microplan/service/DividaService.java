@@ -43,10 +43,19 @@ public class DividaService {
         Long dividaId = pagamento.getDivida().getId();
         Divida d = dividaRepo.findById(dividaId).orElseThrow(() -> new Exception("Dívida não encontrada"));
         BigDecimal valor = pagamento.getValor() == null ? BigDecimal.ZERO : pagamento.getValor();
-        // subtrai valor do saldo, nunca deixa negativo
-        BigDecimal novoSaldo = d.getSaldoAtual().subtract(valor).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        // valida se o valor é maior que o saldo
+        if (valor.compareTo(d.getSaldoAtual()) > 0) {
+            throw new Exception("Valor do pagamento maior que o saldo da dívida");
+        }
+        // subtrai valor do saldo
+        BigDecimal novoSaldo = d.getSaldoAtual().subtract(valor).setScale(2, RoundingMode.HALF_UP);
         d.setSaldoAtual(novoSaldo);
-        return dividaRepo.save(d);
+        Divida salva = dividaRepo.save(d);
+        // se saldo zero, elimina a dívida
+        if (novoSaldo.equals(BigDecimal.ZERO)) {
+            dividaRepo.delete(salva);
+        }
+        return salva;
     }
 
     public void apagar(Long id) {

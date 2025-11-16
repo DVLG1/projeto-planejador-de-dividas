@@ -7,7 +7,9 @@ import com.example.microplan.service.DividaService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -38,6 +40,14 @@ public class DividaController {
         return ResponseEntity.ok(dividaRepo.findByUsuarioId(usuarioId).stream().map(DividaResponse::from).toList());
     }
 
+    @GetMapping("/usuario/{usuarioId}/ativas")
+    public ResponseEntity<List<DividaResponse>> porUsuarioAtivo(@PathVariable Long usuarioId) {
+        return ResponseEntity.ok(dividaRepo.findByUsuarioId(usuarioId).stream()
+                .filter(d -> d.getSaldoAtual().compareTo(BigDecimal.ZERO) > 0)
+                .map(DividaResponse::from)
+                .toList());
+    }
+
     @PostMapping
     public ResponseEntity<?> criar(@RequestBody Divida d) {
         try {
@@ -61,6 +71,29 @@ public class DividaController {
             dividaRepo.save(d);
             return ResponseEntity.ok(DividaResponse.from(d));
         }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/simular-pagamento")
+    public ResponseEntity<?> simularPagamento(@PathVariable Long id, @RequestBody Map<String, String> request) {
+        try {
+            String valorStr = request.get("valor");
+            if (valorStr == null) return ResponseEntity.badRequest().body(Map.of("erro", "Valor é obrigatório"));
+            BigDecimal valor = new BigDecimal(valorStr);
+            Optional<Divida> opt = dividaRepo.findById(id);
+            if (!opt.isPresent()) return ResponseEntity.notFound().build();
+            Divida d = opt.get();
+            if (valor.compareTo(BigDecimal.ZERO) <= 0) {
+                return ResponseEntity.badRequest().body(Map.of("erro", "Valor deve ser maior que zero"));
+            }
+            if (valor.compareTo(d.getSaldoAtual()) > 0) {
+                return ResponseEntity.badRequest().body(Map.of("erro", "Valor do pagamento maior que o saldo da dívida"));
+            }
+            BigDecimal novoSaldo = d.getSaldoAtual().subtract(valor);
+            boolean quitada = novoSaldo.compareTo(BigDecimal.ZERO) == 0;
+            return ResponseEntity.ok(Map.of("novoSaldo", novoSaldo, "quitada", quitada));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("erro", e.getMessage()));
+        }
     }
 
     @DeleteMapping("/{id}")

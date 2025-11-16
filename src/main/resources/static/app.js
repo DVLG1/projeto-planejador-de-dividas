@@ -286,8 +286,7 @@ function showDividaForm(dividaId, usuarioId, credorId, descricao, saldo, taxa, p
   const isEditing = editingDividaId !== null;
   const form = document.createElement('div');
   form.innerHTML = `
-    <div class="small">Você precisa já ter ` +
-    `usuarios e credores criados. Use seus ids abaixo.</div>
+    <div class="small">Você precisa já ter criados usuários e credores. Use seus ids abaixo.</div>
     <div class="form-row"><input id="d-usuario" placeholder="usuarioId" value="${usuarioId || ''}"><input id="d-credor" placeholder="credorId" value="${credorId || ''}"></div>
     <div class="form-row"><input id="d-descricao" placeholder="Descrição" value="${descricao || ''}"><input id="d-saldo" placeholder="Saldo (ex: 1500.00)" value="${saldo || ''}"></div>
     <div class="form-row"><input id="d-taxa" placeholder="taxa juros anual (ex: 10.00)" value="${taxa || ''}"><input id="d-parcela" placeholder="parcela minima (ex: 50.00)" value="${parcela || ''}"></div>
@@ -380,10 +379,38 @@ function showPagamentoForm(pagamentoId, dividaId, data, valor, tipo, observacao)
   form.innerHTML = `
     <div class="form-row"><input id="p-divida" placeholder="dividaId" value="${dividaId || ''}"><input id="p-valor" placeholder="valor (ex: 100.00)" value="${valor || ''}"></div>
     <div class="form-row"><select id="p-tipo"><option value="PARCIAL" ${tipo === 'PARCIAL' ? 'selected' : ''}>PARCIAL</option><option value="TOTAL" ${tipo === 'TOTAL' ? 'selected' : ''}>TOTAL</option></select><input id="p-observacao" placeholder="observação" value="${observacao || ''}"></div>
-    <button class="btn" id="p-save">${isEditing ? 'Atualizar' : 'Registrar'}</button>
+    <div id="sim-result" style="margin-bottom: 10px;"></div>
+    <button class="btn" id="p-sim">Simular Pagamento</button>
+    <button class="btn" id="p-save" style="margin-left: 10px;">${isEditing ? 'Atualizar' : 'Registrar'}</button>
     <button class="btn secondary" id="p-cancel">Cancelar</button>
   `;
   page.appendChild(form);
+  document.getElementById('p-sim').onclick = async () => {
+    const dividaId = parseInt(document.getElementById('p-divida').value);
+    const valor = parseFloat(document.getElementById('p-valor').value);
+    if (!dividaId || !valor || valor <= 0) {
+      alert('Preencha dividaId e valor válido');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/dividas/${dividaId}/simular-pagamento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valor: valor.toString() })
+      });
+      const json = await res.json();
+      const resultDiv = document.getElementById('sim-result');
+      if (!res.ok) {
+        resultDiv.innerHTML = `<div style="color: red;">Erro: ${json.erro}</div>`;
+        return;
+      }
+      const novoSaldo = parseFloat(json.novoSaldo).toFixed(2);
+      const quitada = json.quitada ? 'Sim, dívida será quitada.' : 'Não, dívida remanescente: R$ ' + novoSaldo;
+      resultDiv.innerHTML = `<div style="color: green;">Novo dívida: R$ ${novoSaldo}. Quitada: ${quitada}</div>`;
+    } catch(e) {
+      alert('Erro: ' + e.message);
+    }
+  };
   document.getElementById('p-save').onclick = async () => {
     const payload = { divida: { id: parseInt(document.getElementById('p-divida').value) }, valor: parseFloat(document.getElementById('p-valor').value), tipo: document.getElementById('p-tipo').value, observacao: document.getElementById('p-observacao').value };
     try {
@@ -641,6 +668,10 @@ function setupUserMenu() {
       <i class="ri-money-dollar-box-line"></i>
       Minhas Dívidas
     </button>
+    <button onclick="navigate('pagamentos-usuario')">
+      <i class="ri-cash-line"></i>
+      Pagamentos
+    </button>
     <button onclick="navigate('plano-usuario')">
       <i class="ri-file-chart-line"></i>
       Meu Plano
@@ -650,9 +681,10 @@ function setupUserMenu() {
 
 function navigate(route) {
   page.innerHTML = '';
-  pageTitle.textContent = ({home:'Dashboard','minhas-dividas':'Minhas Dívidas','plano-usuario':'Meu Plano'}[route] || 'Dashboard');
+  pageTitle.textContent = ({home:'Dashboard','minhas-dividas':'Minhas Dívidas','pagamentos-usuario':'Pagamentos','plano-usuario':'Meu Plano'}[route] || 'Dashboard');
   if (route === 'home') return renderUserDashboard();
   if (route === 'minhas-dividas') return renderMinhasDividas();
+  if (route === 'pagamentos-usuario') return renderPagamentosUsuario();
   if (route === 'plano-usuario') return renderMeuPlano();
 }
 
@@ -665,10 +697,10 @@ function renderUserDashboard() {
 
 async function loadUserDashboard() {
   try {
-    const divRes = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
-    const dividas = await divRes.json();
+    const divRes = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}/ativas`);
+    const allDividas = await divRes.json();
 
-    const arr = Array.isArray(dividas) ? dividas : [];
+    const arr = Array.isArray(allDividas) ? allDividas.filter(d => parseFloat(d.saldoAtual) > 0) : [];
     const totalSaldo = arr.reduce((s, d) => s + (parseFloat(d.saldoAtual) || 0), 0);
 
     const userCard = `
@@ -717,7 +749,7 @@ if (document.readyState === 'loading') {
 async function renderMinhasDividas(){
   page.appendChild(createLoading());
   try {
-    const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+    const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}/ativas`);
     const dividas = await res.json();
 
     page.innerHTML = '';
@@ -729,9 +761,11 @@ async function renderMinhasDividas(){
     btnAdd.onclick = showAddDividaForm;
     page.appendChild(btnAdd);
 
-    const arr = Array.isArray(dividas) ? dividas : [];
+    const allArr = Array.isArray(dividas) ? dividas : [];
+    // Filtrar apenas dívidas com saldo > 0 (não quitadas)
+    const arr = allArr.filter(d => parseFloat(d.saldoAtual) > 0);
     if (arr.length === 0) {
-      page.appendChild(document.createElement('div')).innerHTML = '<div class="notice">Nenhuma dívida registrada. Clique em "Adicionar Dívida" para começar.</div>';
+      page.appendChild(document.createElement('div')).innerHTML = '<div class="notice">Nenhuma dívida pendente. Clique em "Adicionar Dívida" para começar ou verifique seus pagamentos.</div>';
     } else {
       page.appendChild(createTable(['Credor', 'Descrição', 'Saldo', 'Juros%', 'Parcela', 'Vencimento'],
         arr.map(d => [d.credorNome, d.descricao, d.saldoAtual, d.taxaJurosAnual, d.parcelaMinima, d.vencimentoMensal])));
@@ -742,6 +776,87 @@ async function renderMinhasDividas(){
 }
 
 // Render the user's plan
+async function renderPagamentosUsuario() {
+  page.innerHTML = '';
+  page.appendChild(createLoading());
+  try {
+    const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}/ativas`);
+    const debts = await res.json();
+    page.innerHTML = '<h3>Simular ou Registrar Pagamento</h3>';
+    if (debts.length === 0) {
+      page.innerHTML += '<div class="notice">Nenhuma dívida pendente disponível. Adicione dívidas ou todas estão quitadas.</div>';
+      return;
+    }
+    const form = document.createElement('div');
+    form.innerHTML = `
+      <div class="form-row">
+        <select id="debt-select">
+          <option value="">Selecione uma dívida</option>
+          ${debts.map(d => `<option value="${d.id}">${d.descricao} - Dívida R$ ${d.saldoAtual}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-row"><input id="valor-pagamento" placeholder="Valor do pagamento (ex: 100.00)" value="" type="number" step="0.01"></div>
+      <div class="form-row"><input id="observacao-pagamento" placeholder="Observação" value=""></div>
+      <div id="sim-result" style="margin-bottom: 10px;"></div>
+      <button class="btn" id="sim-btn">Simular Pagamento</button>
+      <button class="btn" id="pay-btn" style="margin-left: 10px;">Registrar Pagamento</button>
+      <button class="btn secondary" id="cancel-btn">Cancelar</button>
+    `;
+    page.appendChild(form);
+    document.getElementById('sim-btn').onclick = async () => {
+      const dividaId = document.getElementById('debt-select').value;
+      const valor = document.getElementById('valor-pagamento').value;
+      if (!dividaId || !valor) {
+        alert('Selecione uma dívida e valor');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/dividas/${dividaId}/simular-pagamento`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valor: valor })
+        });
+        const json = await res.json();
+        const resultDiv = document.getElementById('sim-result');
+        if (!res.ok) {
+          resultDiv.innerHTML = `<div style="color: red;">Erro: ${json.erro}</div>`;
+          return;
+        }
+        const novoSaldo = parseFloat(json.novoSaldo).toFixed(2);
+        const quitada = json.quitada ? 'Sim, dívida será quitada.' : 'Não, dívida remanescente: R$ ' + novoSaldo;
+        resultDiv.innerHTML = `<div style="color: green;">Novo dívida: R$ ${novoSaldo}. Quitada: ${quitada}</div>`;
+      } catch(e) {
+        alert('Erro: ' + e.message);
+      }
+    };
+    document.getElementById('pay-btn').onclick = async () => {
+      const dividaId = document.getElementById('debt-select').value;
+      const valor = document.getElementById('valor-pagamento').value;
+      const observacao = document.getElementById('observacao-pagamento').value || '';
+      if (!dividaId || !valor) {
+        alert('Selecione uma dívida e valor');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/pagamentos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ divida: { id: dividaId }, valor: valor, tipo: 'PARCIAL', observacao })
+        });
+        const json = await res.json();
+        if (!res.ok) return alert(json.error || 'Erro');
+        alert('Pagamento registrado!');
+        renderPagamentosUsuario();
+      } catch(e) {
+        alert('Erro: ' + e.message);
+      }
+    };
+    document.getElementById('cancel-btn').onclick = () => navigate('home');
+  } catch(e) {
+    page.innerHTML = `<div class="notice">Erro: ${e.message}</div>`;
+  }
+}
+
 async function renderMeuPlano() {
   console.log('Rendering meu plano page');
   page.innerHTML = '';
@@ -976,11 +1091,11 @@ async function createPaymentInstructions(plano, detalhes) {
   const estrategia = plano.estrategia;
   const estrategiaNome = estrategia === 'AVALANCHE' ? 'Avalanche (maior juros primeiro)' : 'Snowball (menor saldo primeiro)';
 
-  // Fetch original debt amounts from API (before any payments)
+  // Fetch original debt amounts from API (before any payments) - only active debts
   let originalDebts = [];
   if (currentUser && currentUser.id) {
     try {
-      const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}`);
+      const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}/ativas`);
       const dividas = await res.json();
       originalDebts = Array.isArray(dividas) ? dividas : [];
     } catch (e) {
