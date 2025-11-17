@@ -1,13 +1,6 @@
 -- Schema inicial do Microplan (MySQL)
 -- Ajustado para evitar truncamento em valores monetários e suportar cronograma longo
 
--- Apagar tabelas caso existam (apenas para desenvolvimento; Flyway normalmente roda em DB limpo)
-DROP TABLE IF EXISTS pagamentos;
-DROP TABLE IF EXISTS dividas;
-DROP TABLE IF EXISTS planos;
-DROP TABLE IF EXISTS credores;
-DROP TABLE IF EXISTS usuarios;
-
 -- Usuários
 CREATE TABLE usuarios (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

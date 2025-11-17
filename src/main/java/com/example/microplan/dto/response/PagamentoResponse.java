@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 public class PagamentoResponse {
     private Long id;
+    private Long usuarioId;
     private Long dividaId;
     private LocalDateTime data;
     private BigDecimal valor;
@@ -15,6 +16,7 @@ public class PagamentoResponse {
     public static PagamentoResponse from(Pagamento p) {
         PagamentoResponse r = new PagamentoResponse();
         r.id = p.getId();
+        if (p.getUsuario() != null) r.usuarioId = p.getUsuario().getId();
         if (p.getDivida() != null) r.dividaId = p.getDivida().getId();
         r.data = p.getData();
         r.valor = p.getValor();
@@ -24,6 +26,7 @@ public class PagamentoResponse {
     }
 
     public Long getId() { return id; }
+    public Long getUsuarioId() { return usuarioId; }
     public Long getDividaId() { return dividaId; }
     public LocalDateTime getData() { return data; }
     public BigDecimal getValor() { return valor; }

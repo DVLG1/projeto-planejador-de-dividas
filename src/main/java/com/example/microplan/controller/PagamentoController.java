@@ -50,6 +50,8 @@ public class PagamentoController {
             Divida d = dividaRepo.findById(dividaId).orElseThrow(() -> new Exception("Dívida não encontrada"));
             // atribui a divida completa ao pagamento
             p.setDivida(d);
+            // atribui o usuario da divida ao pagamento
+            p.setUsuario(d.getUsuario());
             if (p.getData() == null) p.setData(LocalDateTime.now());
             Pagamento salvo = pagamentoRepo.save(p);
             // aplicar o pagamento na dívida

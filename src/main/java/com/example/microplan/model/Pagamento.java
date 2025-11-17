@@ -13,6 +13,10 @@ public class Pagamento {
     private Long id;
 
     @ManyToOne
+    @JoinColumn(name = "usuario_id")
+    private Usuario usuario;
+
+    @ManyToOne
     private Divida divida;
 
     private LocalDateTime data;
@@ -28,6 +32,9 @@ public class Pagamento {
     // Getters e Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Usuario getUsuario() { return usuario; }
+    public void setUsuario(Usuario usuario) { this.usuario = usuario; }
 
     public Divida getDivida() { return divida; }
     public void setDivida(Divida divida) { this.divida = divida; }
