@@ -25,9 +25,9 @@ public class FinancialHealthService {
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         List<Divida> dividas = dividaService.listarPorUsuario(usuarioId)
-                .stream()
-                .filter(d -> d.getSaldoAtual().compareTo(BigDecimal.ZERO) > 0)
-                .toList();
+            .stream()
+            .filter(d -> d.getSaldoAtual() != null && d.getSaldoAtual().compareTo(BigDecimal.ZERO) > 0)
+            .toList();
 
         BigDecimal rendaMensal = usuario.getRendaMensal();
         if (rendaMensal == null || rendaMensal.compareTo(BigDecimal.ZERO) <= 0) {
@@ -35,16 +35,13 @@ public class FinancialHealthService {
         }
 
         int quantidadeDividas = dividas.size();
-        BigDecimal totalDividas = dividas.stream()
-                .map(Divida::getSaldoAtual)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal mediaTaxaJuros = BigDecimal.ZERO;
         if (!dividas.isEmpty()) {
-            mediaTaxaJuros = dividas.stream()
-                    .map(Divida::getTaxaJurosAnual)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add)
-                    .divide(BigDecimal.valueOf(dividas.size()), 2, RoundingMode.HALF_UP);
+            BigDecimal somaTaxas = dividas.stream()
+                .map(d -> d.getTaxaJurosAnual() == null ? BigDecimal.ZERO : d.getTaxaJurosAnual())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            mediaTaxaJuros = somaTaxas.divide(BigDecimal.valueOf(dividas.size()), 2, RoundingMode.HALF_UP);
         }
 
         // Fator atraso simulado: conta dívidas vencidas hoje (simulado como se fosse dia atual >= vencimento)
@@ -57,8 +54,8 @@ public class FinancialHealthService {
 
         // Penalidade por porcentagem da renda comprometida com dívidas (ideally no more than 30% of income)
         BigDecimal parcelaMinimasTotal = dividas.stream()
-                .map(d -> d.getParcelaMinima() != null ? d.getParcelaMinima() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .map(d -> d.getParcelaMinima() == null ? BigDecimal.ZERO : d.getParcelaMinima())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         double percentualComprometido = parcelaMinimasTotal.divide(rendaMensal, 4, RoundingMode.HALF_UP).doubleValue() * 100;
         if (percentualComprometido > 30) {

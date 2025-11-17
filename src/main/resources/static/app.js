@@ -1,5 +1,12 @@
 const API_BASE = 'http://localhost:8080/api';
 
+// Utility: format numbers as BRL currency (ex: R$ 125.530,28)
+function formatCurrency(value) {
+  const n = Number(value);
+  if (value === null || value === undefined || isNaN(n)) return 'N/A';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+}
+
 // Landing page functions
 function showApp() {
   document.querySelector('header').style.display = 'none';
@@ -267,9 +274,9 @@ async function renderDividas(){
       d.usuarioNome,
       d.credorNome,
       d.descricao,
-      d.saldoAtual,
+      formatCurrency(d.saldoAtual),
       d.taxaJurosAnual,
-      d.parcelaMinima,
+      formatCurrency(d.parcelaMinima),
       d.vencimentoMensal,
       `<button class="btn small" onclick="editDivida(${d.id}, ${d.usuarioId || (d.usuario && d.usuario.id)}, ${d.credorId || (d.credor && d.credor.id)}, '${d.descricao}', ${d.saldoAtual}, ${d.taxaJurosAnual}, ${d.parcelaMinima}, ${d.vencimentoMensal})">Editar</button> ` +
       `<button class="btn secondary small" onclick="deleteDivida(${d.id}, '${d.descricao}')">Excluir</button>`
@@ -404,9 +411,9 @@ function showPagamentoForm(pagamentoId, dividaId, data, valor, tipo, observacao)
         resultDiv.innerHTML = `<div style="color: red;">Erro: ${json.erro}</div>`;
         return;
       }
-      const novoSaldo = parseFloat(json.novoSaldo).toFixed(2);
-      const quitada = json.quitada ? 'Sim, dívida será quitada.' : 'Não, dívida remanescente: R$ ' + novoSaldo;
-      resultDiv.innerHTML = `<div style="color: green;">Novo dívida: R$ ${novoSaldo}. Quitada: ${quitada}</div>`;
+      const novoSaldoVal = parseFloat(json.novoSaldo);
+      const quitada = json.quitada ? 'Sim, dívida será quitada.' : 'Não, dívida remanescente: ' + formatCurrency(novoSaldoVal);
+      resultDiv.innerHTML = `<div style="color: green;">Novo dívida: ${formatCurrency(novoSaldoVal)}. Quitada: ${quitada}</div>`;
     } catch(e) {
       alert('Erro: ' + e.message);
     }
@@ -714,7 +721,7 @@ async function loadUserDashboard() {
         <h3>Informações Pessoais</h3>
         <p><strong>Nome:</strong> ${currentUser.nome}</p>
         <p><strong>Email:</strong> ${currentUser.email}</p>
-        <p><strong>Renda Mensal:</strong> R$ ${currentUser.rendaMensal || 'N/A'}</p>
+        <p><strong>Renda Mensal:</strong> ${formatCurrency(currentUser.rendaMensal)}</p>
       </div>
     `;
 
@@ -737,7 +744,7 @@ async function loadUserDashboard() {
       <div class="dashboard-section">
         <h3>Resumo Dívidas</h3>
         <p><strong>Total de Dívidas:</strong> ${arr.length}</p>
-        <p><strong>Saldo Total:</strong> R$ ${totalSaldo.toFixed(2)}</p>
+        <p><strong>Saldo Total:</strong> ${formatCurrency(totalSaldo)}</p>
         ${arr.length > 0 ? createTable(['Credor', 'Descrição', 'Saldo', 'Juros%'], arr.map(d => [d.credorNome, d.descricao, d.saldoAtual, d.taxaJurosAnual])).outerHTML : ''}
       </div>
     `;
@@ -884,9 +891,9 @@ async function renderPagamentosUsuario() {
           resultDiv.innerHTML = `<div style="color: red;">Erro: ${json.erro}</div>`;
           return;
         }
-        const novoSaldo = parseFloat(json.novoSaldo).toFixed(2);
-        const quitada = json.quitada ? 'Sim, dívida será quitada.' : 'Não, dívida remanescente: R$ ' + novoSaldo;
-        resultDiv.innerHTML = `<div style="color: green;">Novo dívida: R$ ${novoSaldo}. Quitada: ${quitada}</div>`;
+        const novoSaldoVal = parseFloat(json.novoSaldo);
+        const quitada = json.quitada ? 'Sim, dívida será quitada.' : 'Não, dívida remanescente: ' + formatCurrency(novoSaldoVal);
+        resultDiv.innerHTML = `<div style="color: green;">Novo dívida: ${formatCurrency(novoSaldoVal)}. Quitada: ${quitada}</div>`;
       } catch(e) {
         alert('Erro: ' + e.message);
       }
@@ -1200,29 +1207,30 @@ async function createPaymentInstructions(plano, detalhes) {
     <ol class="debt-priority-list">`;
 
   debts.forEach((debt, index) => {
-    const jurosMensais = (parseFloat(debt.saldo) * parseFloat(debt.taxa) / 100 / 12).toFixed(0);
+    const jurosMensaisVal = (parseFloat(debt.saldo) * parseFloat(debt.taxa) / 100 / 12);
+    const jurosMensais = jurosMensaisVal.toFixed(0);
     let motivo = '';
 
     if (estrategia === 'AVALANCHE') {
       if (index === 0) {
-        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de R$ ${jurosMensais} por mês. É a dívida que mais cresce e causa o maior impacto no total de juros.`;
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de ${formatCurrency(jurosMensaisVal)} por mês. É a dívida que mais cresce e causa o maior impacto no total de juros.`;
       } else if (index === 1) {
-        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de R$ ${jurosMensais} por mês. Apesar do saldo maior, o custo mensal de juros é menor que o da primeira dívida, então fica em segundo.`;
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de ${formatCurrency(jurosMensaisVal)} por mês. Apesar do saldo maior, o custo mensal de juros é menor que o da primeira dívida, então fica em segundo.`;
       } else {
-        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, juros mensais na faixa de R$ ${jurosMensais}. Não cresce tão rápido quanto as anteriores, então só entra na fila depois que eles forem eliminados.`;
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, juros mensais na faixa de ${formatCurrency(jurosMensaisVal)}. Não cresce tão rápido quanto as anteriores, então só entra na fila depois que eles forem eliminados.`;
       }
     } else { // SNOWBALL
       if (index === 0) {
-        motivo = `saldo menor (R$ ${parseFloat(debt.saldo).toFixed(2)}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Estratégia Snowball prioriza quitar primeiro as dívidas menores para criar motivação com vitórias rápidas.`;
+        motivo = `saldo menor (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Estratégia Snowball prioriza quitar primeiro as dívidas menores para criar motivação com vitórias rápidas.`;
       } else if (index === 1) {
-        motivo = `saldo médio (R$ ${parseFloat(debt.saldo).toFixed(2)}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Menor que as anteriores, mas depois de quitar a primeira.`;
+        motivo = `saldo médio (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Menor que as anteriores, mas depois de quitar a primeira.`;
       } else {
-        motivo = `saldo maior (R$ ${parseFloat(debt.saldo).toFixed(2)}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Mesmo com saldo grande, fica por último para manter o foco nas dívidas menores primeiro.`;
+        motivo = `saldo maior (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Mesmo com saldo grande, fica por último para manter o foco nas dívidas menores primeiro.`;
       }
     }
 
     debtOrderHtml += `<li class="debt-priority-item">
-      <div class="debt-name"><strong>${debt.descricao}</strong>. Saldo R$ ${parseFloat(debt.saldo).toFixed(2)}</div>
+      <div class="debt-name"><strong>${debt.descricao}</strong>. Saldo ${formatCurrency(parseFloat(debt.saldo))}</div>
       <div class="debt-reason"><strong>Motivo:</strong> ${motivo}</div>
     </li>`;
   });
@@ -1250,7 +1258,7 @@ async function createPaymentInstructions(plano, detalhes) {
       <ul class="execution-steps">
         <li class="execution-step">
           <i class="ri-wallet-line"></i>
-          <span>Use o valor mensal disponível (<strong>R$ ${parseFloat(plano.valorDisponivelMensal).toFixed(2)}</strong>) para pagamentos</span>
+          <span>Use o valor mensal disponível (<strong>${formatCurrency(parseFloat(plano.valorDisponivelMensal))}</strong>) para pagamentos</span>
         </li>
         <li class="execution-step">
           <i class="ri-arrow-right-circle-line"></i>
@@ -1273,13 +1281,13 @@ async function createPaymentInstructions(plano, detalhes) {
       ${plano.totalPagoEstimado ? `
         <div class="result-item">
           <div class="result-label">Total pago estimado:</div>
-          <div class="result-value total">${parseFloat(plano.totalPagoEstimado).toFixed(2)}</div>
+              <div class="result-value total">${formatCurrency(parseFloat(plano.totalPagoEstimado))}</div>
         </div>
       ` : ''}
       ${plano.custoTotalJuros ? `
         <div class="result-item">
           <div class="result-label">Total de juros pagos:</div>
-          <div class="result-value interest">${parseFloat(plano.custoTotalJuros).toFixed(2)}</div>
+          <div class="result-value interest">${formatCurrency(parseFloat(plano.custoTotalJuros))}</div>
         </div>
       ` : ''}
     </div>
@@ -1309,7 +1317,7 @@ async function renderSavedChart(graficoData) {
   }
 
   const debts = graficoData.debts || [];
-  const labels = debts[0] ? debts[0].balances.map((_, idx) => `Mês ${idx}`) : []; // Start from 0
+  const labels = debts[0] ? debts[0].balances.map((_, idx) => `Mês ${idx + 1}`) : []; // Start from 1 for user-friendly months
 
   let colorIndex = 0;
   debts.forEach(debt => {
@@ -1363,7 +1371,7 @@ async function renderSavedChart(graficoData) {
             },
             ticks: {
               callback: function(value) {
-                return 'R$ ' + value.toLocaleString();
+                return formatCurrency(value);
               }
             }
           }
@@ -1372,7 +1380,7 @@ async function renderSavedChart(graficoData) {
           tooltip: {
             callbacks: {
               label: function(context) {
-                return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+                return 'Saldo: ' + formatCurrency(context.parsed.y);
               }
             }
           },
@@ -1484,7 +1492,7 @@ async function renderPlanoChart(plano, detalhes) {
             },
             ticks: {
               callback: function(value) {
-                return 'R$ ' + value.toLocaleString();
+                return formatCurrency(value);
               }
             }
           }
@@ -1493,7 +1501,7 @@ async function renderPlanoChart(plano, detalhes) {
           tooltip: {
             callbacks: {
               label: function(context) {
-                return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+                return 'Saldo: ' + formatCurrency(context.parsed.y);
               }
             }
           },
@@ -1532,12 +1540,12 @@ function renderPlanoTableContent(plano, detalhes, tableContainer) {
       const pagamentoTotal = cumulativeTotal;
       return [
         d.mes,
-        'R$ ' + saldoInicial.toFixed(2),
-        'R$ ' + juros.toFixed(2),
-        'R$ ' + parcela.toFixed(2),
-        'R$ ' + pagamentoExtra.toFixed(2),
-        'R$ ' + pagamentoTotal.toFixed(2),
-        'R$ ' + saldoFinal.toFixed(2)
+        formatCurrency(saldoInicial),
+        formatCurrency(juros),
+        formatCurrency(parcela),
+        formatCurrency(pagamentoExtra),
+        formatCurrency(pagamentoTotal),
+        formatCurrency(saldoFinal)
       ];
     });
     tableContainer.appendChild(createTable(headers, rows));
@@ -1641,17 +1649,17 @@ async function renderPlanoChartInContainer(plano, detalhes, container) {
               text: 'Saldo Remanescente (R$)'
             },
             ticks: {
-              callback: function(value) {
-                return 'R$ ' + value.toLocaleString();
-              }
-            }
+                  callback: function(value) {
+                    return formatCurrency(value);
+                  }
+                }
           }
         },
         plugins: {
           tooltip: {
             callbacks: {
               label: function(context) {
-                return 'Saldo: R$ ' + context.parsed.y.toLocaleString();
+                return 'Saldo: ' + formatCurrency(context.parsed.y);
               }
             }
           },

@@ -26,7 +26,7 @@ public class DividaController {
 
     @GetMapping
     public List<DividaResponse> listarTodas() {
-        return dividaRepo.findAll().stream().map(DividaResponse::from).toList();
+        return dividaRepo.findAllWithUsuarioAndCredor().stream().map(DividaResponse::from).toList();
     }
 
     @GetMapping("/{id}")
@@ -37,15 +37,15 @@ public class DividaController {
 
     @GetMapping("/usuario/{usuarioId}")
     public ResponseEntity<List<DividaResponse>> porUsuario(@PathVariable Long usuarioId) {
-        return ResponseEntity.ok(dividaRepo.findByUsuarioId(usuarioId).stream().map(DividaResponse::from).toList());
+        return ResponseEntity.ok(dividaRepo.findByUsuarioIdWithUsuarioAndCredor(usuarioId).stream().map(DividaResponse::from).toList());
     }
 
     @GetMapping("/usuario/{usuarioId}/ativas")
     public ResponseEntity<List<DividaResponse>> porUsuarioAtivo(@PathVariable Long usuarioId) {
-        return ResponseEntity.ok(dividaRepo.findByUsuarioId(usuarioId).stream()
-                .filter(d -> d.getSaldoAtual().compareTo(BigDecimal.ZERO) > 0)
-                .map(DividaResponse::from)
-                .toList());
+        return ResponseEntity.ok(dividaRepo.findByUsuarioIdWithUsuarioAndCredor(usuarioId).stream()
+            .filter(d -> d.getSaldoAtual().compareTo(BigDecimal.ZERO) > 0)
+            .map(DividaResponse::from)
+            .toList());
     }
 
     @PostMapping

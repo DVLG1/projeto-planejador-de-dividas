@@ -18,9 +18,13 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class PlanoService {
+
+    private static final Logger logger = LoggerFactory.getLogger(PlanoService.class);
 
     private final DividaRepository dividaRepo;
     private final UsuarioRepository usuarioRepo;
@@ -37,12 +41,6 @@ public class PlanoService {
 
     @Transactional
     public PlanoQuitacao gerarPlano(GeneratePlanRequest req) throws Exception {
-        // Deleta planos existentes do usuário antes de criar um novo
-        List<PlanoQuitacao> planosExistentes = planoRepo.findByUsuarioId(req.getUsuarioId());
-        for (PlanoQuitacao p : planosExistentes) {
-            planoRepo.delete(p);
-        }
-
         // Validações iniciais
         if (req == null || req.getUsuarioId() == null) throw new Exception("Dados da requisição inválidos");
         if (req.getValorDisponivelMensal() == null || req.getValorDisponivelMensal().compareTo(BigDecimal.ZERO) <= 0)
@@ -53,6 +51,12 @@ public class PlanoService {
 
         Optional<Usuario> uOpt = usuarioRepo.findById(req.getUsuarioId());
         if (uOpt.isEmpty()) throw new Exception("Usuário não encontrado");
+
+        // Remove planos existentes do usuário antes de criar um novo (em batch)
+        List<PlanoQuitacao> planosExistentes = planoRepo.findByUsuarioId(req.getUsuarioId());
+        if (!planosExistentes.isEmpty()) {
+            planoRepo.deleteAll(planosExistentes);
+        }
 
         List<Divida> dividas = dividaRepo.findByUsuarioId(req.getUsuarioId())
                 .stream()
@@ -93,6 +97,7 @@ public class PlanoService {
 
         List<DividaSim> sims = dividas.stream().map(DividaSim::new).toList();
 
+        Map<Long, DividaSim> idToSim = sims.stream().collect(Collectors.toMap(s -> s.id, s -> s));
 
 
         Comparator<DividaSim> comparator =
@@ -206,7 +211,8 @@ public class PlanoService {
             for (Map.Entry<Long, BigDecimal> entry : paymentsThisMonth.entrySet()) {
                 Long id = entry.getKey();
                 BigDecimal pago = entry.getValue();
-                String descricao = sims.stream().filter(s -> s.id.equals(id)).findFirst().map(s -> s.descricao).orElse("Desconhecido");
+                DividaSim s = idToSim.get(id);
+                String descricao = s != null ? s.descricao : "Desconhecido";
                 ObjectNode pNode = objectMapper.createObjectNode();
                 pNode.put("id", id);
                 pNode.put("descricao", descricao);
@@ -226,7 +232,8 @@ public class PlanoService {
             cronograma.add(mesNode);
         }
 
-        String detalhesJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(cronograma);
+        // Usa JSON compacto para reduzir tamanho armazenado no banco
+        String detalhesJson = objectMapper.writeValueAsString(cronograma);
 
         // Gerar dados do gráfico
         Map<Long, Map<String, Object>> balanceMap = new HashMap<>();
@@ -272,9 +279,9 @@ public class PlanoService {
         String graficoJson;
         try {
             graficoJson = objectMapper.writeValueAsString(graficoNode);
-            System.out.println("DEBUG: graficoJson = " + graficoJson);
+            logger.debug("graficoJson = {}", graficoJson);
         } catch (Exception e) {
-            System.out.println("ERROR: Failed to serialize grafico: " + e.getMessage());
+            logger.error("Failed to serialize grafico: {}", e.getMessage());
             graficoJson = "{}"; // fallback empty JSON
         }
 
@@ -288,22 +295,22 @@ public class PlanoService {
         plano.setCustoTotalJuros(totalJuros);
         plano.setDetalhes(detalhesJson);
         plano.setGrafico(graficoJson);
-        System.out.println("DEBUG: Before save, plano.getGrafico() = " + plano.getGrafico());
+        logger.debug("Before save, plano.getGrafico() = {}", plano.getGrafico());
 
         planoRepo.save(plano);
         return plano;
     }
 
     public Optional<PlanoQuitacao> buscarPorId(Long id) {
-        return planoRepo.findById(id);
+        return planoRepo.findByIdWithUsuario(id);
     }
 
     public List<PlanoQuitacao> buscarPorUsuario(Long uid) {
-        List<PlanoQuitacao> planos = planoRepo.findByUsuarioId(uid);
+        List<PlanoQuitacao> planos = planoRepo.findByUsuarioIdWithUsuario(uid);
         // Debug info
-        System.out.println("DEBUG: Encontrados " + planos.size() + " planos para usuario " + uid);
+        logger.debug("Encontrados {} planos para usuario {}", planos.size(), uid);
         planos.forEach(p -> {
-            System.out.println("DEBUG: Plano ID " + p.getId() + ", detalhes length: " +
+            logger.debug("Plano ID {}, detalhes length: {}", p.getId(),
                 (p.getDetalhes() != null ? p.getDetalhes().length() : "null"));
         });
         return planos;
