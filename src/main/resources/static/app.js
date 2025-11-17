@@ -7,6 +7,32 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
 }
 
+// Create a vertical gradient for charts
+function createGradient(ctx, color) {
+  const g = ctx.createLinearGradient(0, 0, 0, 200);
+  // color is like 'rgb(r, g, b)'
+  const rgba = color.replace('rgb(', '').replace(')', '');
+  return g.addColorStop ? (function() {
+    g.addColorStop(0, `rgba(${rgba}, 0.18)`);
+    g.addColorStop(0.6, `rgba(${rgba}, 0.06)`);
+    g.addColorStop(1, `rgba(${rgba}, 0)`);
+    return g;
+  })() : color;
+}
+
+// Common chart options to give a modern look
+const commonChartOptions = {
+  responsive: true,
+  maintainAspectRatio: true,
+  interaction: { mode: 'index', intersect: false },
+  animation: { duration: 800, easing: 'easeOutQuart' },
+  plugins: {
+    legend: { display: true, position: 'top', labels: { usePointStyle: true, padding: 16 } },
+    tooltip: { enabled: true, mode: 'nearest', intersect: false }
+  },
+  layout: { padding: { top: 6, right: 12, bottom: 6, left: 6 } }
+};
+
 // Landing page functions
 function showApp() {
   document.querySelector('header').style.display = 'none';
@@ -1195,6 +1221,21 @@ async function createPaymentInstructions(plano, detalhes) {
   });
 
   const debts = Object.values(debtsMap);
+  // Determine payoff months for each debt from `detalhes` if available
+  const payoffMap = {}; // id -> month number when saldo becomes zero
+  if (Array.isArray(detalhes)) {
+    detalhes.forEach((monthObj, idx) => {
+      const monthNumber = monthObj && monthObj.mes !== undefined ? Number(monthObj.mes) : (idx + 1);
+      const monthDividas = (monthObj && monthObj.dividas) || [];
+      monthDividas.forEach(dbt => {
+        const id = dbt && dbt.id;
+        const saldoVal = Number(dbt && dbt.saldo) || 0;
+        if (id !== undefined && payoffMap[id] === undefined && saldoVal === 0) {
+          payoffMap[id] = monthNumber;
+        }
+      });
+    });
+  }
   // Sort debts based on strategy
   if (estrategia === 'AVALANCHE') {
     debts.sort((a, b) => b.taxa - a.taxa); // Higher interest first
@@ -1229,9 +1270,20 @@ async function createPaymentInstructions(plano, detalhes) {
       }
     }
 
+    // Determine payoff description
+    const payoffMonth = payoffMap[debt.id];
+    let payoffHtml = '';
+    if (payoffMonth) {
+      const monthsAhead = payoffMonth; // months are stored as 1-based month number
+      payoffHtml = `<div class="debt-eta" style="margin-top:6px;color:#0ea5a4;"><strong>Previsão de quitação:</strong> Mês ${payoffMonth} (aprox. ${monthsAhead} ${monthsAhead === 1 ? 'mês' : 'meses'})</div>`;
+    } else {
+      payoffHtml = `<div class="debt-eta" style="margin-top:6px;color:#6b7280;"><strong>Previsão de quitação:</strong> não prevista nos dados do plano</div>`;
+    }
+
     debtOrderHtml += `<li class="debt-priority-item">
       <div class="debt-name"><strong>${debt.descricao}</strong>. Saldo ${formatCurrency(parseFloat(debt.saldo))}</div>
       <div class="debt-reason"><strong>Motivo:</strong> ${motivo}</div>
+      ${payoffHtml}
     </li>`;
   });
   debtOrderHtml += `</ol></div>`;
@@ -1317,13 +1369,13 @@ async function renderSavedChart(graficoData) {
   }
 
   const debts = graficoData.debts || [];
-  const labels = debts[0] ? debts[0].balances.map((_, idx) => `Mês ${idx + 1}`) : []; // Start from 1 for user-friendly months
 
   let colorIndex = 0;
   debts.forEach(debt => {
     const chartDiv = document.createElement('div');
     chartDiv.style.flex = '1 1 45%';
     chartDiv.style.minWidth = '400px';
+    chartDiv.style.height = '260px';
 
     const title = document.createElement('h5');
     title.textContent = debt.descricao || debt.id;
@@ -1332,64 +1384,53 @@ async function renderSavedChart(graficoData) {
     const canvas = document.createElement('canvas');
     canvas.width = '400';
     canvas.height = '200';
+    canvas.style.width = '100%';
+    canvas.style.height = '220px';
     chartDiv.appendChild(canvas);
 
     chartsContainer.appendChild(chartDiv);
 
-    // Prepend initial balance to data
+    // Prepend initial balance to data and ensure final zero month exists
     const initial = initialBalances[debt.id] || 0;
-    const data = [initial].concat(debt.balances || []);
+    const data = [initial].concat(debt.balances || []).map(v => Number(v) || 0);
+    // If last point isn't zero, append a zero month so chart clearly reaches 0
+    if (data.length === 0 || data[data.length - 1] !== 0) {
+      data.push(0);
+    }
+    // Build labels to match data length (user-friendly months starting at 1)
+    const labelsForChart = data.map((_, idx) => `Mês ${idx + 1}`);
 
-    new Chart(canvas.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: debt.descricao || debt.id,
-          data: data,
-          borderColor: getChartColor(colorIndex),
-          backgroundColor: getChartColor(colorIndex).replace('rgb', 'rgba').replace(')', ', 0.1)'),
-          tension: 0.4,
-          fill: false,
-          pointRadius: 3
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Meses'
-            }
-          },
-          y: {
-            beginAtZero: false,
-            title: {
-              display: true,
-              text: 'Saldo Remanescente (R$)'
-            },
-            ticks: {
-              callback: function(value) {
-                return formatCurrency(value);
-              }
-            }
-          }
+    (function() {
+      const ctx = canvas.getContext('2d');
+      const color = getChartColor(colorIndex);
+      const gradient = createGradient(ctx, color);
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labelsForChart,
+          datasets: [{
+            label: debt.descricao || debt.id,
+            data: data,
+            borderColor: color,
+            backgroundColor: gradient,
+            tension: 0.36,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            borderWidth: 2
+          }]
         },
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return 'Saldo: ' + formatCurrency(context.parsed.y);
-              }
-            }
+        options: Object.assign({}, commonChartOptions, {
+          scales: {
+            x: { title: { display: true, text: 'Meses' }, grid: { display: false } },
+            y: { beginAtZero: false, title: { display: true, text: 'Saldo Remanescente (R$)' }, ticks: { callback: function(value){ return formatCurrency(value); } }, grid: { color: 'rgba(200,200,200,0.08)' } }
           },
-          legend: {
-            display: false
-          }
-        }
-      }
-    });
+          plugins: Object.assign({}, commonChartOptions.plugins, {
+            tooltip: { callbacks: { label: function(context) { return 'Saldo: ' + formatCurrency(context.parsed.y); } } }
+          })
+        })
+      });
+    })();
     colorIndex++;
   });
 }
@@ -1433,13 +1474,16 @@ async function renderPlanoChart(plano, detalhes) {
     });
   });
 
-  // Prepend initial balances
+
+  // Prepend initial balances and normalize numbers
   Object.keys(balanceMap).forEach(id => {
     const initial = initialBalances[id] || 0;
-    balanceMap[id].balances = [initial].concat(balanceMap[id].balances);
+    balanceMap[id].balances = [initial].concat(balanceMap[id].balances).map(v => Number(v) || 0);
+    // Ensure each balance series explicitly ends with a zero month for visual clarity
+    if (balanceMap[id].balances.length === 0 || balanceMap[id].balances[balanceMap[id].balances.length - 1] !== 0) {
+      balanceMap[id].balances.push(0);
+    }
   });
-
-  const labels = detalhes.map((_, idx) => `Mês ${idx}`); // Start from 0
 
   // Create a separate chart for each debt
   let colorIndex = 0;
@@ -1460,57 +1504,21 @@ async function renderPlanoChart(plano, detalhes) {
 
     chartsContainer.appendChild(chartDiv);
 
-    // Create individual chart
-    new Chart(canvas.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: debt.descricao,
-          data: debt.balances,
-          borderColor: getChartColor(colorIndex),
-          backgroundColor: getChartColor(colorIndex).replace('rgb', 'rgba').replace(')', ', 0.1)'),
-          tension: 0.4,
-          fill: false,
-          pointRadius: 3
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Meses'
-            }
-          },
-          y: {
-            beginAtZero: false,
-            title: {
-              display: true,
-              text: 'Saldo Remanescente (R$)'
-            },
-            ticks: {
-              callback: function(value) {
-                return formatCurrency(value);
-              }
-            }
-          }
-        },
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return 'Saldo: ' + formatCurrency(context.parsed.y);
-              }
-            }
-          },
-          legend: {
-            display: false // No legend needed since each chart is for one debt
-          }
-        }
-      }
-    });
+    // Create individual chart (modern style)
+    (function(){
+      const ctx = canvas.getContext('2d');
+      const color = getChartColor(colorIndex);
+      const gradient = createGradient(ctx, color);
+      const labelsForChart = debt.balances.map((_, idx) => `Mês ${idx + 1}`);
+      new Chart(ctx, {
+        type: 'line',
+        data: { labels: labelsForChart, datasets: [{ label: debt.descricao, data: debt.balances, borderColor: color, backgroundColor: gradient, tension: 0.36, fill: true, pointRadius: 0, pointHoverRadius: 6, borderWidth: 2 }] },
+        options: Object.assign({}, commonChartOptions, {
+          scales: { x: { title: { display: true, text: 'Meses' }, grid: { display: false } }, y: { beginAtZero: false, title: { display: true, text: 'Saldo Remanescente (R$)' }, ticks: { callback: function(v){ return formatCurrency(v); } }, grid: { color: 'rgba(200,200,200,0.08)' } } },
+          plugins: Object.assign({}, commonChartOptions.plugins, { tooltip: { callbacks: { label: function(context){ return 'Saldo: ' + formatCurrency(context.parsed.y); } } }, legend: { display: true } })
+        })
+      });
+    })();
 
     colorIndex++;
   });
@@ -1618,57 +1626,21 @@ async function renderPlanoChartInContainer(plano, detalhes, container) {
 
     container.appendChild(chartDiv);
 
-    // Create individual chart
-    new Chart(canvas.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: debt.descricao,
-          data: debt.balances,
-          borderColor: getChartColor(colorIndex),
-          backgroundColor: getChartColor(colorIndex).replace('rgb', 'rgba').replace(')', ', 0.1)'),
-          tension: 0.4,
-          fill: false,
-          pointRadius: 3
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Meses'
-            }
-          },
-          y: {
-            beginAtZero: false,
-            title: {
-              display: true,
-              text: 'Saldo Remanescente (R$)'
-            },
-            ticks: {
-                  callback: function(value) {
-                    return formatCurrency(value);
-                  }
-                }
-          }
-        },
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return 'Saldo: ' + formatCurrency(context.parsed.y);
-              }
-            }
-          },
-          legend: {
-            display: false // No legend needed since each chart is for one debt
-          }
-        }
-      }
-    });
+    // Create individual chart in container (modern style)
+    (function(){
+      const ctx = canvas.getContext('2d');
+      const color = getChartColor(colorIndex);
+      const gradient = createGradient(ctx, color);
+      const labelsForChart = debt.balances.map((_, idx) => `Mês ${idx + 1}`);
+      new Chart(ctx, {
+        type: 'line',
+        data: { labels: labelsForChart, datasets: [{ label: debt.descricao, data: debt.balances, borderColor: color, backgroundColor: gradient, tension: 0.36, fill: true, pointRadius: 0, pointHoverRadius: 6, borderWidth: 2 }] },
+        options: Object.assign({}, commonChartOptions, {
+          scales: { x: { title: { display: true, text: 'Meses' }, grid: { display: false } }, y: { beginAtZero: false, title: { display: true, text: 'Saldo Remanescente (R$)' }, ticks: { callback: function(v){ return formatCurrency(v); } }, grid: { color: 'rgba(200,200,200,0.08)' } } },
+          plugins: Object.assign({}, commonChartOptions.plugins, { tooltip: { callbacks: { label: function(context){ return 'Saldo: ' + formatCurrency(context.parsed.y); } } }, legend: { display: true } })
+        })
+      });
+    })();
 
     colorIndex++;
   });
