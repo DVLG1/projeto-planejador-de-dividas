@@ -981,8 +981,19 @@ async function renderMeuPlano() {
     `;
   } else {
     container.innerHTML = `
-      <h3>Gerar Meu Plano de Quitação</h3>
-      <p>Insira quanto você pode pagar mensalmente e escolha a estratégia para simular seu plano:</p>
+      <div class="page-header-section">
+        <h3 class="page-main-heading">
+          <i class="ri-file-chart-line"></i>
+          Gerar Meu Plano de Quitação
+        </h3>
+        <p class="page-intro-text">
+          <i class="ri-cash-line" style="margin-right: 0.5rem; color: var(--primary);"></i>
+          Insira quanto você pode pagar mensalmente e escolha a estratégia para simular seu plano.
+          <br>
+          <i class="ri-bar-chart-line" style="margin-right: 0.5rem; margin-top: 1rem; color: var(--secondary);"></i>
+          Nosso simulador ajudará você a visualizar o caminho para quitar suas dívidas de forma eficiente e organizada.
+        </p>
+      </div>
       <div class="form-row">
         <input id="valor-mensal" type="number" step="0.01" placeholder="Valor mensal disponível (ex: 500.00)">
         <select id="estrategia">
@@ -1184,7 +1195,10 @@ async function createPaymentInstructions(plano, detalhes) {
     debts.sort((a, b) => a.saldo - b.saldo); // Lower balance first
   }
 
-  let debtOrderHtml = `<h5 style="margin-top: 15px; margin-bottom: 10px;">Ordem de prioridade das dívidas</h5><ol>`;
+  let debtOrderHtml = `<div class="debt-priority-section">
+    <h5 class="debt-priority-title">Ordem de prioridade das dívidas</h5>
+    <ol class="debt-priority-list">`;
+
   debts.forEach((debt, index) => {
     const jurosMensais = (parseFloat(debt.saldo) * parseFloat(debt.taxa) / 100 / 12).toFixed(0);
     let motivo = '';
@@ -1193,7 +1207,7 @@ async function createPaymentInstructions(plano, detalhes) {
       if (index === 0) {
         motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de R$ ${jurosMensais} por mês. É a dívida que mais cresce e causa o maior impacto no total de juros.`;
       } else if (index === 1) {
-        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de R$ ${jurosMensais} por mês. Apesar do saldo ${debts[0].saldo > debt.saldo ? 'menor' : 'maior'}, o custo mensal de juros é menor que o da primeira dívida, então fica em segundo.`;
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de R$ ${jurosMensais} por mês. Apesar do saldo maior, o custo mensal de juros é menor que o da primeira dívida, então fica em segundo.`;
       } else {
         motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, juros mensais na faixa de R$ ${jurosMensais}. Não cresce tão rápido quanto as anteriores, então só entra na fila depois que eles forem eliminados.`;
       }
@@ -1207,24 +1221,68 @@ async function createPaymentInstructions(plano, detalhes) {
       }
     }
 
-    debtOrderHtml += `<li><strong>${debt.descricao}</strong>. Saldo R$ ${parseFloat(debt.saldo).toFixed(2)}. <strong>Motivo:</strong> ${motivo}</li>`;
+    debtOrderHtml += `<li class="debt-priority-item">
+      <div class="debt-name"><strong>${debt.descricao}</strong>. Saldo R$ ${parseFloat(debt.saldo).toFixed(2)}</div>
+      <div class="debt-reason"><strong>Motivo:</strong> ${motivo}</div>
+    </li>`;
   });
-  debtOrderHtml += `</ol>`;
+  debtOrderHtml += `</ol></div>`;
 
-  let instructions = `<div class="payment-instructions" style="margin-bottom: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 5px; border-left: 4px solid #007bff;">
-    <h4 style="color: #007bff; margin-bottom: 10px;">Como pagar a dívida da maneira mais eficiente:</h4>
-    <p><strong>Estratégia utilizada:</strong> ${estrategiaNome}</p>
-    <p>Esta estratégia recomenda que você siga esta ordem de prioridade:</p>
+  let instructions = `<div class="payment-instructions-modern">
+    <div class="instructions-header">
+      <i class="ri-guide-line"></i>
+      <h4 class="instructions-title">Como pagar a dívida da maneira mais eficiente</h4>
+    </div>
+
+    <div class="strategy-info">
+      <div class="strategy-label">Estratégia utilizada:</div>
+      <div class="strategy-value">${estrategiaNome}</div>
+    </div>
+
+    <div class="strategy-description">
+      Esta estratégia recomenda que você siga esta ordem de prioridade:
+    </div>
+
     ${debtOrderHtml}
-    <p><strong>Como executar o plano:</strong></p>
-    <ul>
-      <li>Use o valor mensal disponível (R$ ${parseFloat(plano.valorDisponivelMensal).toFixed(2)}) para pagamentos</li>
-      <li>Após quitar uma dívida, direcione o valor adicional para as próximas da lista</li>
-      <li>O gráfico abaixo mostra a projeção de quitação ao longo dos meses</li>
-    </ul>
-    ${plano.duracaoEstimadaMeses ? `<p><strong>Duração estimada:</strong> ${plano.duracaoEstimadaMeses} meses</p>` : ''}
-    ${plano.totalPagoEstimado ? `<p><strong>Total pago estimado:</strong> R$ ${parseFloat(plano.totalPagoEstimado).toFixed(2)}</p>` : ''}
-    ${plano.custoTotalJuros ? `<p><strong>Total de juros pagos:</strong> R$ ${parseFloat(plano.custoTotalJuros).toFixed(2)}</p>` : ''}
+
+    <div class="execution-section">
+      <h5 class="execution-title">Como executar o plano:</h5>
+      <ul class="execution-steps">
+        <li class="execution-step">
+          <i class="ri-wallet-line"></i>
+          <span>Use o valor mensal disponível (<strong>R$ ${parseFloat(plano.valorDisponivelMensal).toFixed(2)}</strong>) para pagamentos</span>
+        </li>
+        <li class="execution-step">
+          <i class="ri-arrow-right-circle-line"></i>
+          <span>Após quitar uma dívida, direcione o valor adicional para as próximas da lista</span>
+        </li>
+        <li class="execution-step">
+          <i class="ri-bar-chart-line"></i>
+          <span>O gráfico abaixo mostra a projeção de quitação ao longo dos meses</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="results-summary">
+      ${plano.duracaoEstimadaMeses ? `
+        <div class="result-item">
+          <div class="result-label">Duração estimada:</div>
+          <div class="result-value duration">${plano.duracaoEstimadaMeses} meses</div>
+        </div>
+      ` : ''}
+      ${plano.totalPagoEstimado ? `
+        <div class="result-item">
+          <div class="result-label">Total pago estimado:</div>
+          <div class="result-value total">${parseFloat(plano.totalPagoEstimado).toFixed(2)}</div>
+        </div>
+      ` : ''}
+      ${plano.custoTotalJuros ? `
+        <div class="result-item">
+          <div class="result-label">Total de juros pagos:</div>
+          <div class="result-value interest">${parseFloat(plano.custoTotalJuros).toFixed(2)}</div>
+        </div>
+      ` : ''}
+    </div>
   </div>`;
 
   return instructions;
