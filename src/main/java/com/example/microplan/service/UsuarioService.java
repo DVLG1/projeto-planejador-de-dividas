@@ -55,4 +55,8 @@ public class UsuarioService {
         usuario.setSenha(passwordEncoder.encode(novaSenha));
         usuarioRepository.save(usuario);
     }
+
+    public Optional<Usuario> buscarPorId(Long id) {
+        return usuarioRepository.findById(id);
+    }
 }

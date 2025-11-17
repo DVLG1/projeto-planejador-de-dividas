@@ -3,6 +3,7 @@ package com.example.microplan.controller;
 import com.example.microplan.dto.response.UsuarioResponse;
 import com.example.microplan.model.Usuario;
 import com.example.microplan.repository.UsuarioRepository;
+import com.example.microplan.service.FinancialHealthService;
 import com.example.microplan.service.UsuarioService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -54,10 +55,12 @@ public class UsuarioController {
 
     private final UsuarioRepository usuarioRepo;
     private final UsuarioService usuarioService;
+    private final FinancialHealthService financialHealthService;
 
-    public UsuarioController(UsuarioRepository usuarioRepo, UsuarioService usuarioService) {
+    public UsuarioController(UsuarioRepository usuarioRepo, UsuarioService usuarioService, FinancialHealthService financialHealthService) {
         this.usuarioRepo = usuarioRepo;
         this.usuarioService = usuarioService;
+        this.financialHealthService = financialHealthService;
     }
 
     @GetMapping
@@ -167,5 +170,33 @@ public class UsuarioController {
         if (!usuarioRepo.existsById(id)) return ResponseEntity.notFound().build();
         usuarioRepo.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/score-saude-financeira")
+    @Operation(summary = "Calcular Score de Saúde Financeira")
+    @ApiResponse(responseCode = "200", description = "Score calculado")
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado")
+    public ResponseEntity<Map<String, Object>> calcularScoreSaudeFinanceira(@PathVariable Long id) {
+        if (!usuarioRepo.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            int score = financialHealthService.calcularScoreSaudeFinanceira(id);
+            return ResponseEntity.ok(Map.of(
+                "usuarioId", id,
+                "score", score,
+                "classificacao", classificarScore(score)
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    private String classificarScore(int score) {
+        if (score >= 80) return "Excelente";
+        else if (score >= 60) return "Bom";
+        else if (score >= 40) return "Ruim";
+        else if (score >= 20) return "Crítico";
+        else return "Extremo";
     }
 }

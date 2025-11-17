@@ -703,12 +703,33 @@ async function loadUserDashboard() {
     const arr = Array.isArray(allDividas) ? allDividas.filter(d => parseFloat(d.saldoAtual) > 0) : [];
     const totalSaldo = arr.reduce((s, d) => s + (parseFloat(d.saldoAtual) || 0), 0);
 
+    // Fetch financial health score
+    const scoreRes = await fetch(`${API_BASE}/usuarios/${currentUser.id}/score-saude-financeira`);
+    const scoreData = await scoreRes.json();
+    const score = scoreData.score || 0;
+    const classificacao = scoreData.classificacao || 'N/A';
+
     const userCard = `
       <div class="dashboard-section">
         <h3>Informações Pessoais</h3>
         <p><strong>Nome:</strong> ${currentUser.nome}</p>
         <p><strong>Email:</strong> ${currentUser.email}</p>
         <p><strong>Renda Mensal:</strong> R$ ${currentUser.rendaMensal || 'N/A'}</p>
+      </div>
+    `;
+
+    const scoreCard = `
+      <div class="dashboard-section">
+        <h3>Score de Saúde Financeira</h3>
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <div style="width: 120px; height: 120px;">
+            <canvas id="score-gauge" width="120" height="120"></canvas>
+          </div>
+          <div>
+            <p style="font-size: 2rem; font-weight: bold; color: ${getScoreColor(score)};">${score}/100</p>
+            <p style="font-size: 1.2rem; color: ${getScoreColor(score)};">${classificacao}</p>
+          </div>
+        </div>
       </div>
     `;
 
@@ -721,10 +742,51 @@ async function loadUserDashboard() {
       </div>
     `;
 
-    page.innerHTML = userCard + debtsCard;
+    page.innerHTML = userCard + scoreCard + debtsCard;
+
+    // Render gauge chart
+    renderScoreGauge(score);
   } catch (e) {
     page.innerHTML = `<div class="notice">Erro: ${e.message}</div>`;
   }
+}
+
+function getScoreColor(score) {
+  if (score >= 80) return '#10b981'; // green
+  else if (score >= 60) return '#3b82f6'; // blue
+  else if (score >= 40) return '#f59e0b'; // yellow
+  else return '#ef4444'; // red
+}
+
+function renderScoreGauge(score) {
+  const canvas = document.getElementById('score-gauge');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const radius = 45;
+
+  // Background circle
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+  ctx.strokeStyle = '#e5e7eb';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+
+  // Score arc
+  const angle = (score / 100) * 2 * Math.PI - Math.PI / 2;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
+  ctx.strokeStyle = getScoreColor(score);
+  ctx.lineWidth = 8;
+  ctx.stroke();
+
+  // Center text
+  ctx.fillStyle = '#333';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(score.toString(), centerX, centerY + 5);
 }
 
 function createLoading() {
