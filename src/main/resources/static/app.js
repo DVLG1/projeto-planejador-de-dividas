@@ -335,7 +335,7 @@ async function renderDividas(){
     const btnNew = document.createElement('button'); btnNew.className='btn'; btnNew.textContent='Nova dívida';
     btnNew.onclick = () => showDividaForm();
     page.appendChild(btnNew);
-    const headers = ['ID','Usuário','Credor','Descrição','Saldo','Juros%','Parcela','Vencimento', 'Ações'];
+    const headers = ['ID','Usuário','Credor','Descrição','Dívida','Juros%','Parcela','Vencimento', 'Ações'];
     const rows = data.map(d => {
       const vencDisplay = d.vencimento ? d.vencimento : (d.vencimentoMensal ? `Dia ${d.vencimentoMensal}` : '');
       return [
@@ -365,7 +365,7 @@ function showDividaForm(dividaId, usuarioId, credorId, descricao, saldo, taxa, p
   form.innerHTML = `
     <div class="small">Você precisa já ter criados usuários e credores. Use seus ids abaixo.</div>
     <div class="form-row"><input id="d-usuario" placeholder="usuarioId" value="${usuarioId || ''}"><input id="d-credor" placeholder="credorId" value="${credorId || ''}"></div>
-    <div class="form-row"><input id="d-descricao" placeholder="Descrição" value="${descricao || ''}"><input id="d-saldo" placeholder="Saldo (ex: 1500.00)" value="${saldo || ''}"></div>
+    <div class="form-row"><input id="d-descricao" placeholder="Descrição" value="${descricao || ''}"><input id="d-saldo" placeholder="Dívida (ex: 1500.00)" value="${saldo || ''}"></div>
     <div class="form-row"><input id="d-taxa" placeholder="taxa juros anual (ex: 10.00)" value="${taxa || ''}"><input id="d-parcela" placeholder="parcela minima (ex: 50.00)" value="${parcela || ''}"></div>
     <div class="form-row"><input id="d-venc" placeholder="vencimentoMensal (1-28)" value="${vencimento || ''}"></div>
     <button class="btn" id="d-save">${isEditing ? 'Atualizar' : 'Salvar'}</button>
@@ -887,8 +887,8 @@ async function loadUserDashboard() {
       <div class="dashboard-section">
         <h3>Resumo Dívidas</h3>
         <p><strong>Total de Dívidas:</strong> ${arr.length}</p>
-        <p><strong>Saldo Total:</strong> ${formatCurrency(totalSaldo)}</p>
-        ${arr.length > 0 ? createTable(['Credor', 'Descrição', 'Saldo', 'Juros%'], arr.map(d => [d.credorNome, d.descricao, d.saldoAtual, d.taxaJurosAnual])).outerHTML : ''}
+        <p><strong>Dívida Total:</strong> ${formatCurrency(totalSaldo)}</p>
+        ${arr.length > 0 ? createTable(['Credor', 'Descrição', 'Dívida', 'Juros%'], arr.map(d => [d.credorNome, d.descricao, d.saldoAtual, d.taxaJurosAnual])).outerHTML : ''}
       </div>
     `;
 
@@ -1074,7 +1074,7 @@ async function renderMinhasDividas(){
     if (arr.length === 0) {
       page.appendChild(document.createElement('div')).innerHTML = '<div class="notice">Nenhuma dívida pendente. Clique em "Adicionar Dívida" para começar ou verifique seus pagamentos.</div>';
     } else {
-      page.appendChild(createTable(['Credor', 'Descrição', 'Saldo', 'Juros%', 'Parcela', 'Vencimento'],
+      page.appendChild(createTable(['Credor', 'Descrição', 'Dívida', 'Juros%', 'Parcela', 'Vencimento'],
           arr.map(d => {
             const vencDisplay = d.vencimento ? d.vencimento : (d.vencimentoMensal ? `Dia ${d.vencimentoMensal}` : '');
             return [d.credorNome, d.descricao, d.saldoAtual, d.taxaJurosAnual, d.parcelaMinima, vencDisplay];
@@ -1246,7 +1246,7 @@ async function renderMeuPlano() {
         <input id="valor-mensal" type="number" step="0.01" placeholder="Valor mensal disponível (ex: 500.00)">
         <select id="estrategia">
           <option value="AVALANCHE">Avalanche (Maior juros primeiro)</option>
-          <option value="SNOWBALL">Snowball (Menor saldo primeiro)</option>
+          <option value="SNOWBALL">Snowball (Menor dívida primeiro)</option>
         </select>
       <button class="btn" id="gerar-plano-btn">Gerar Plano</button>
     </div>
@@ -1471,17 +1471,17 @@ async function createPaymentInstructions(plano, detalhes) {
       if (index === 0) {
         motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de ${formatCurrency(jurosMensaisVal)} por mês. É a dívida que mais cresce e causa o maior impacto no total de juros.`;
       } else if (index === 1) {
-        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de ${formatCurrency(jurosMensaisVal)} por mês. Apesar do saldo maior, o custo mensal de juros é menor que o da primeira dívida, então fica em segundo.`;
+        motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, gera cerca de ${formatCurrency(jurosMensaisVal)} por mês. Apesar da dívida maior, o custo mensal de juros é menor que o da primeira dívida, então fica em segundo.`;
       } else {
         motivo = `taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano, juros mensais na faixa de ${formatCurrency(jurosMensaisVal)}. Não cresce tão rápido quanto as anteriores, então só entra na fila depois que eles forem eliminados.`;
       }
     } else { // SNOWBALL
       if (index === 0) {
-        motivo = `saldo menor (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Estratégia Snowball prioriza quitar primeiro as dívidas menores para criar motivação com vitórias rápidas.`;
+        motivo = `dívida menor (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Estratégia Snowball prioriza quitar primeiro as dívidas menores para criar motivação com vitórias rápidas.`;
       } else if (index === 1) {
-        motivo = `saldo médio (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Menor que as anteriores, mas depois de quitar a primeira.`;
+        motivo = `dívida média (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Menor que as anteriores, mas depois de quitar a primeira.`;
       } else {
-        motivo = `saldo maior (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Mesmo com saldo grande, fica por último para manter o foco nas dívidas menores primeiro.`;
+        motivo = `dívida maior (${formatCurrency(parseFloat(debt.saldo))}), taxa de ${parseFloat(debt.taxa).toFixed(1)}% ao ano. Mesmo com dívida grande, fica por último para manter o foco nas dívidas menores primeiro.`;
       }
     }
 
@@ -1496,7 +1496,7 @@ async function createPaymentInstructions(plano, detalhes) {
     }
 
     debtOrderHtml += `<li class="debt-priority-item">
-      <div class="debt-name"><strong>${debt.descricao}</strong>. Saldo ${formatCurrency(parseFloat(debt.saldo))}</div>
+      <div class="debt-name"><strong>${debt.descricao}</strong>. Dívida ${formatCurrency(parseFloat(debt.saldo))}</div>
       <div class="debt-reason"><strong>Motivo:</strong> ${motivo}</div>
       ${payoffHtml}
     </li>`;
@@ -1638,10 +1638,10 @@ async function renderSavedChart(graficoData) {
         options: Object.assign({}, commonChartOptions, {
           scales: {
             x: { title: { display: true, text: 'Meses' }, grid: { display: false } },
-            y: { beginAtZero: false, title: { display: true, text: 'Saldo Remanescente (R$)' }, ticks: { callback: function(value){ return formatCurrency(value); } }, grid: { color: 'rgba(200,200,200,0.08)' } }
+            y: { beginAtZero: false, title: { display: true, text: 'Dívida Remanescente (R$)' }, ticks: { callback: function(value){ return formatCurrency(value); } }, grid: { color: 'rgba(200,200,200,0.08)' } }
           },
           plugins: Object.assign({}, commonChartOptions.plugins, {
-            tooltip: { callbacks: { label: function(context) { return 'Saldo: ' + formatCurrency(context.parsed.y); } } }
+            tooltip: { callbacks: { label: function(context) { return 'Dívida: ' + formatCurrency(context.parsed.y); } } }
           })
         })
       });
@@ -1729,8 +1729,8 @@ async function renderPlanoChart(plano, detalhes) {
         type: 'line',
         data: { labels: labelsForChart, datasets: [{ label: debt.descricao, data: debt.balances, borderColor: color, backgroundColor: gradient, tension: 0.36, fill: true, pointRadius: 0, pointHoverRadius: 6, borderWidth: 2 }] },
         options: Object.assign({}, commonChartOptions, {
-          scales: { x: { title: { display: true, text: 'Meses' }, grid: { display: false } }, y: { beginAtZero: false, title: { display: true, text: 'Saldo Remanescente (R$)' }, ticks: { callback: function(v){ return formatCurrency(v); } }, grid: { color: 'rgba(200,200,200,0.08)' } } },
-          plugins: Object.assign({}, commonChartOptions.plugins, { tooltip: { callbacks: { label: function(context){ return 'Saldo: ' + formatCurrency(context.parsed.y); } } }, legend: { display: true } })
+          scales: { x: { title: { display: true, text: 'Meses' }, grid: { display: false } }, y: { beginAtZero: false, title: { display: true, text: 'Dívida Remanescente (R$)' }, ticks: { callback: function(v){ return formatCurrency(v); } }, grid: { color: 'rgba(200,200,200,0.08)' } } },
+          plugins: Object.assign({}, commonChartOptions.plugins, { tooltip: { callbacks: { label: function(context){ return 'Dívida: ' + formatCurrency(context.parsed.y); } } }, legend: { display: true } })
         })
       });
     })();
@@ -1749,7 +1749,7 @@ function renderPlanoTable(plano, detalhes) {
 function renderPlanoTableContent(plano, detalhes, tableContainer) {
   // Detailed table
   if (Array.isArray(detalhes) && detalhes.length > 0) {
-    const headers = ['Mês', 'Saldo Inicial', 'Juros', 'Parcela', 'Pagamento Extra', 'Pagamento Total', 'Saldo Final'];
+    const headers = ['Mês', 'Dívida Inicial', 'Juros', 'Parcela', 'Pagamento Extra', 'Pagamento Total', 'Dívida Final'];
     let cumulativeTotal = 0;
     const rows = detalhes.slice(0, 20).map(d => { // Limit to first 20 months
       const resumo = d.resumo || {};
@@ -1851,8 +1851,8 @@ async function renderPlanoChartInContainer(plano, detalhes, container) {
         type: 'line',
         data: { labels: labelsForChart, datasets: [{ label: debt.descricao, data: debt.balances, borderColor: color, backgroundColor: gradient, tension: 0.36, fill: true, pointRadius: 0, pointHoverRadius: 6, borderWidth: 2 }] },
         options: Object.assign({}, commonChartOptions, {
-          scales: { x: { title: { display: true, text: 'Meses' }, grid: { display: false } }, y: { beginAtZero: false, title: { display: true, text: 'Saldo Remanescente (R$)' }, ticks: { callback: function(v){ return formatCurrency(v); } }, grid: { color: 'rgba(200,200,200,0.08)' } } },
-          plugins: Object.assign({}, commonChartOptions.plugins, { tooltip: { callbacks: { label: function(context){ return 'Saldo: ' + formatCurrency(context.parsed.y); } } }, legend: { display: true } })
+          scales: { x: { title: { display: true, text: 'Meses' }, grid: { display: false } }, y: { beginAtZero: false, title: { display: true, text: 'Dívida Remanescente (R$)' }, ticks: { callback: function(v){ return formatCurrency(v); } }, grid: { color: 'rgba(200,200,200,0.08)' } } },
+          plugins: Object.assign({}, commonChartOptions.plugins, { tooltip: { callbacks: { label: function(context){ return 'Dívida: ' + formatCurrency(context.parsed.y); } } }, legend: { display: true } })
         })
       });
     })();
@@ -1873,7 +1873,7 @@ function showDividaFormUser(dividaId, usuarioId) {
   form.innerHTML = `
     <div class="form-row"><input id="d-credor-nome" placeholder="Nome do Credor" value=""></div>
     <div class="form-row"><input id="d-descricao" placeholder="Descrição da Dívida" value=""></div>
-    <div class="form-row"><input id="d-saldo" placeholder="Saldo Atual (ex: 1500.00)" value="" type="number" step="0.01"></div>
+    <div class="form-row"><input id="d-saldo" placeholder="Dívida Atual (ex: 1500.00)" value="" type="number" step="0.01"></div>
     <div class="form-row"><input id="d-taxa" placeholder="Taxa de Juros Anual (ex: 10.00)" value="" type="number" step="0.01"><input id="d-parcela" placeholder="Parcela Mínima (ex: 50.00)" value="" type="number" step="0.01"></div>
     <div class="form-row"><input id="d-venc" placeholder="Dia de Vencimento (1-28)" value="" type="number" min="1" max="28"></div>
     <button class="btn" id="d-save">${isEditing ? 'Atualizar' : 'Salvar'}</button>
