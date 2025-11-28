@@ -103,8 +103,13 @@ async function createAccount() {
     // Save CPF locally associated to the new user id so we can auto-import later
     try {
       const createdUserId = (json && json.user && json.user.id) ? json.user.id : (json && json.id ? json.id : null);
-      if (cpf && createdUserId) {
-        localStorage.setItem(`user_cpf_${createdUserId}`, cpf);
+      if (createdUserId) {
+        // Clear any previous import flag for this ID (in case of DB reset/ID reuse)
+        localStorage.removeItem(`user_cpf_imported_${createdUserId}`);
+        
+        if (cpf) {
+          localStorage.setItem(`user_cpf_${createdUserId}`, cpf);
+        }
       }
     } catch (e) { /* ignore localStorage errors */ }
 

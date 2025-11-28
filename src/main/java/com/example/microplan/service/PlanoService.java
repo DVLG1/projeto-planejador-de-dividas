@@ -103,7 +103,8 @@ public class PlanoService {
         Comparator<DividaSim> comparator =
                 "SNOWBALL".equalsIgnoreCase(req.getEstrategia())
                         ? Comparator.comparing(d -> d.saldo)
-                        : (d1, d2) -> d2.taxaAnual.compareTo(d1.taxaAnual);
+                        : Comparator.comparing((DividaSim d) -> d.taxaAnual).reversed()
+                            .thenComparing(d -> d.saldo);
 
         List<ObjectNode> cronograma = new ArrayList<>();
 
@@ -141,8 +142,8 @@ public class PlanoService {
             // Track payments per debt this month
             Map<Long, BigDecimal> paymentsThisMonth = new HashMap<>();
 
+            // 1. Pagar mínimos se houver orçamento
             if (!orcamentoInsuficiente) {
-                // Caso orçamento >= soma das mínimas: paga mínimas e usa extra conforme estratégia
                 for (DividaSim s : sims) {
                     if (s.saldo.compareTo(BigDecimal.ZERO) <= 0) continue;
 
@@ -153,46 +154,30 @@ public class PlanoService {
                     minimaPago = minimaPago.add(minimo);
                     paymentsThisMonth.put(s.id, paymentsThisMonth.getOrDefault(s.id, BigDecimal.ZERO).add(minimo));
                 }
+            }
 
-                List<DividaSim> ordenadas = sims.stream()
-                        .filter(s -> s.saldo.compareTo(BigDecimal.ZERO) > 0)
-                        .sorted(comparator)
-                        .toList();
-
-                for (DividaSim s : ordenadas) {
-                    if (restante.compareTo(BigDecimal.ZERO) <= 0) break;
-
-                    BigDecimal extra = s.saldo.min(restante);
-                    s.saldo = s.saldo.subtract(extra);
-                    totalPago = totalPago.add(extra);
-                    restante = restante.subtract(extra);
-                    extraPago = extraPago.add(extra);
-                    paymentsThisMonth.put(s.id, paymentsThisMonth.getOrDefault(s.id, BigDecimal.ZERO).add(extra));
-                }
-            } else {
-                // Orçamento insuficiente: alocar 100% do restante para a dívida de maior custo futuro
-                // Critério: maior taxaAnual (aproximação do maior prejuízo no longo prazo)
-                // Escolhe a dívida que gera o maior prejuízo mensal estimado (saldo * taxa mensal)
-                Optional<DividaSim> alvoOpt = sims.stream()
+            // 2. Usar o restante (ou tudo, se orçamento insuficiente) para pagar conforme estratégia
+            List<DividaSim> ordenadas = sims.stream()
                     .filter(s -> s.saldo.compareTo(BigDecimal.ZERO) > 0)
-                    .max(Comparator.comparing((DividaSim s) -> {
-                        // taxaAnual é percent (ex: 12.5 significa 12.5%)
-                        BigDecimal monthlyRate = s.taxaAnual
-                            .divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP)
-                            .divide(BigDecimal.valueOf(100), 12, RoundingMode.HALF_UP);
-                        return s.saldo.multiply(monthlyRate);
-                    }).thenComparing(s -> s.saldo, Comparator.reverseOrder()));
+                    .sorted(comparator)
+                    .toList();
 
-                if (alvoOpt.isPresent() && restante.compareTo(BigDecimal.ZERO) > 0) {
-                    DividaSim alvo = alvoOpt.get();
-                    BigDecimal pagar = alvo.saldo.min(restante);
-                    alvo.saldo = alvo.saldo.subtract(pagar);
-                    totalPago = totalPago.add(pagar);
-                    restante = restante.subtract(pagar);
-                    // Quando insuficiente, consideramos tudo como "parcela" (já que não paga mínimo), mas para compatibilidade, colocamos em minimaPago
-                    minimaPago = minimaPago.add(pagar);
-                    paymentsThisMonth.put(alvo.id, paymentsThisMonth.getOrDefault(alvo.id, BigDecimal.ZERO).add(pagar));
+            for (DividaSim s : ordenadas) {
+                if (restante.compareTo(BigDecimal.ZERO) <= 0) break;
+
+                BigDecimal pagamento = s.saldo.min(restante);
+                s.saldo = s.saldo.subtract(pagamento);
+                totalPago = totalPago.add(pagamento);
+                restante = restante.subtract(pagamento);
+                
+                if (orcamentoInsuficiente) {
+                    // Se não pagamos mínimos antes, conta como "mínimo/geral" para estatística
+                    minimaPago = minimaPago.add(pagamento);
+                } else {
+                    extraPago = extraPago.add(pagamento);
                 }
+                
+                paymentsThisMonth.put(s.id, paymentsThisMonth.getOrDefault(s.id, BigDecimal.ZERO).add(pagamento));
             }
 
             BigDecimal pagoNoMes = disponivel.subtract(restante);
