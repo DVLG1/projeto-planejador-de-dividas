@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Microplan - Modo Desenvolvedor</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Aplicação Principal - Modo Dev -->
+  <div id="main-screen" style="display: block;">
+    <nav class="app-navbar">
+      <div class="nav-brand">
+        <span class="brand-symbol-small">🛠️</span>
+        <span class="brand-text">Microplan - Dev Mode</span>
+      </div>
+      <div class="nav-actions">
+        <span id="user-info" style="color: #6366f1; font-weight: 600;">Modo Administrativo</span>
+        <a href="/dev/logout" class="btn btn-secondary" style="margin-left: 12px;">Voltar</a>
+      </div>
+    </nav>
+
+    <div class="app-layout">
+      <aside class="app-sidebar">
+        <nav class="sidebar-nav" id="nav-menu">
+          <div class="notice" style="margin-bottom: 15px; border-left-color: #6366f1;">
+            <strong>🛠️ Dev Mode Admin</strong><br>
+            <small>Controle total do sistema</small>
+          </div>
+          <button data-route="home" class="active">Menu</button>
+          <button data-route="usuarios">Usuários</button>
+          <button data-route="credores">Credores</button>
+          <button data-route="dividas">Dívidas</button>
+          <button data-route="pagamentos">Pagamentos</button>
+          <button data-route="plano">Gerar Plano</button>
+        </nav>
+      </aside>
+
+      <main class="app-content">
+        <header class="app-header">
+          <h2 id="page-title">Menu Dev</h2>
+          <div id="header-actions"></div>
+        </header>
+
+        <div id="page" class="page-content">
+          <div class="notice">
+            <strong>🛠️ Modo Desenvolvedor - Acesso Total</strong><br><br>
+            Bem-vindo ao painel administrativo do Microplan!<br><br>
+            <div class="features-grid" style="margin-top: 20px;">
+              <div class="feature-card" style="text-align: left;">
+                <h3>🎯 Usuários</h3>
+                <p>Gerencie cadastros de usuários, rendas e perfis no sistema.</p>
+              </div>
+              <div class="feature-card" style="text-align: left;">
+                <h3>🏢 Credores</h3>
+                <p>Administre instituições financeiras e bancos.</p>
+              </div>
+              <div class="feature-card" style="text-align: left;">
+                <h3>💰 Dívidas</h3>
+                <p>Controle completo sobre todas as dívidas registradas.</p>
+              </div>
+              <div class="feature-card" style="text-align: left;">
+                <h3>📊 Pagamentos</h3>
+                <p>Monitore registros de pagamentos realizados.</p>
+              </div>
+              <div class="feature-card" style="text-align: left;">
+                <h3>📈 Planos</h3>
+                <p>Gere e analise planos de quitação.</p>
+              </div>
+              <div class="feature-card" style="text-align: left;">
+                <h3>🔧 Admin</h3>
+                <p>Controle total com capacidades de CRUD completo.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+
+  <script>
+    // Initialize application for Dev Mode
+    currentUser = { id: 'admin', nome: 'Administrador (Dev)', email: 'dev@local' };
+    currentMode = 'dev';
+
+    function buttonClicked(btn) {
+      navMenu.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      navigate(btn.dataset.route);
+    }
+
+    let pageElement;
+
+    function navigate(route) {
+      pageElement.innerHTML = '';
+      if (currentMode === 'dev') {
+        pageTitle.textContent = ({home:'Menu Dev',usuarios:'Usuários',credores:'Credores',dividas:'Dívidas',pagamentos:'Pagamentos',plano:'Gerar Plano'}[route] || 'Menu');
+        if (route === 'home') return renderDevHome();
+        if (route === 'usuarios') return renderUsuarios();
+        if (route === 'credores') return renderCredores();
+        if (route === 'dividas') return renderDividas();
+        if (route === 'pagamentos') return renderPagamentos();
+        if (route === 'plano') return renderGerarPlano();
+      }
+    }
+
+    function initializeDevDashboard() {
+      mainScreen = document.getElementById('main-screen');
+      pageTitle = document.getElementById('page-title');
+      pageElement = document.getElementById('page');
+      navMenu = document.getElementById('nav-menu');
+      userInfo = document.getElementById('user-info');
+
+      // Make globals for render functions in app.js
+      page = pageElement;
+      // pageTitle, navMenu, userInfo are already set
+
+      // Setup navigation
+
+      function setupDevMenu() {
+        navMenu.innerHTML = `
+          <div class="notice" style="margin-bottom: 15px; border-left-color: #6366f1;">
+            <strong>🛠️ Dev Mode Admin</strong><br>
+            <small>Controle total do sistema</small>
+          </div>
+          <button data-route="home" class="active" onclick="buttonClicked(this)">Menu</button>
+          <button data-route="usuarios" onclick="buttonClicked(this)">Usuários</button>
+          <button data-route="credores" onclick="buttonClicked(this)">Credores</button>
+          <button data-route="dividas" onclick="buttonClicked(this)">Dívidas</button>
+          <button data-route="pagamentos" onclick="buttonClicked(this)">Pagamentos</button>
+          <button data-route="plano" onclick="buttonClicked(this)">Gerar Plano</button>
+        `;
+      }
+
+      setupDevMenu();
+
+      navigate('home');
+    }
+
+    // Run after page is loaded
+    initializeDevDashboard();
+  </script>
+
+  <style>
+    .sidebar-nav button {
+      background: #f1f1f1;
+      color: #333;
+      border: none;
+      padding: 0.5rem 1rem;
+      margin-bottom: 0.25rem;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: background 0.2s ease;
+    }
+
+    .sidebar-nav button:hover {
+      background: #e0e0e0;
+    }
+
+    .sidebar-nav button.active {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: white;
+    }
+
+    .sidebar-nav button.active:hover {
+      background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+    }
+
+    .notice strong {
+      font-size: 1.1rem;
+    }
+  </style>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microplan - Acesso Dev</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header class="hero-header">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h2>🛠️ Modo Desenvolvedor</h2>
+                <p>Acesso administrativo ao sistema Microplan</p>
+                <div class="features-section">
+                    <div class="auth-form" style="max-width: 400px; width: 100%; margin: 0 auto;">
+                        <h2 style="margin-bottom: 20px;">Login Administrativo</h2>
+                        <form action="/dev/login" method="post">
+                            <input type="text" name="username" placeholder="Usuário" required>
+                            <input type="password" name="password" placeholder="Senha" required style="margin-top: 8px;">
+                            <button type="submit" class="btn" style="width: 100%; margin-top: 12px;">Entrar</button>
+                        </form>
+                        <p th:if="${error}" style="color: #ef4444; font-size: 14px; margin-top: 10px; text-align: center;">
+                            <span th:text="${error}"></span>
+                        </p>
+                        <div style="margin-top: 20px; text-align: center;">
+                            <button onclick="window.location.href='/'" class="btn secondary" style="padding: 8px 16px;">Voltar ao Início</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+</body>
+</html>

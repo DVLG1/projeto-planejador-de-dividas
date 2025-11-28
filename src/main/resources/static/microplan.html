@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Microplan - Seu Planejador Financeiro</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+  <!-- App Container -->
+  <div id="main-screen">
+    <nav class="app-navbar">
+      <div class="nav-brand">
+        <span class="brand-symbol-small">💰</span>
+        <span class="brand-text">Microplan</span>
+      </div>
+      <div class="nav-actions">
+        <span id="user-info">
+          <i class="ri-user-line" style="margin-right: 0.5rem;"></i>
+        </span>
+        <button id="logout-btn" class="btn">
+          <i class="ri-logout-box-line"></i>
+          Sair
+        </button>
+      </div>
+    </nav>
+
+    <div class="app-layout">
+      <aside class="app-sidebar">
+        <nav class="sidebar-nav" id="nav-menu">
+          <!-- Navegação será gerada dinamicamente -->
+        </nav>
+      </aside>
+
+      <main class="app-content">
+        <header class="app-header">
+          <h2 id="page-title">
+            <i class="ri-dashboard-line" style="margin-right: 0.75rem;"></i>
+            Dashboard
+          </h2>
+          <div id="header-actions"></div>
+        </header>
+
+        <div id="page" class="page-content">
+          <!-- Conteúdo das páginas será inserido aqui -->
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/app.js"></script>
+
+  <!-- CPF confirmation / import modal -->
+  <div id="cpf-confirm-modal" class="modal" style="display:none; position:fixed; inset:0; align-items:center; justify-content:center; z-index:10000;">
+    <div class="modal-overlay" style="background: rgba(0,0,0,0.4); width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+      <div class="modal-container" style="max-width:720px; width:100%; padding:20px; background:white; border-radius:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 id="cpf-modal-title">Confirme seu CPF</h3>
+          <button onclick="closeCpfModal()" class="btn"><i class="ri-close-line"></i></button>
+        </div>
+        <div style="margin-top:8px;">
+          <p>Informe ou confirme o CPF para buscarmos suas dívidas (mock Bacen/SCR).</p>
+          <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+            <input id="cpf-modal-input" placeholder="Digite o CPF (somente números)" style="flex:1; padding:10px; font-size:1rem;" />
+            <button class="btn" id="cpf-modal-fetch" onclick="cpfModalFetch()">Buscar</button>
+          </div>
+        </div>
+        <div id="cpf-modal-body" style="margin-top:12px; max-height:320px; overflow:auto;"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+          <button class="btn secondary" onclick="closeCpfModal()">Pular</button>
+          <button class="btn" id="cpf-modal-import" onclick="cpfModalImport()">Importar dívidas para minha conta</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
