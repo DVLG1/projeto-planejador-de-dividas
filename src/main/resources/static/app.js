@@ -1092,7 +1092,7 @@ async function renderPagamentosUsuario() {
   try {
     const res = await fetch(`${API_BASE}/dividas/usuario/${currentUser.id}/ativas`);
     const debts = await res.json();
-    page.innerHTML = '<h3>Simular ou Registrar Pagamento</h3>';
+    page.innerHTML = '<h3>Registrar Pagamento</h3>';
     if (debts.length === 0) {
       page.innerHTML += '<div class="notice">Nenhuma dívida pendente disponível. Adicione dívidas ou todas estão quitadas.</div>';
       return;
@@ -1107,38 +1107,10 @@ async function renderPagamentosUsuario() {
       </div>
       <div class="form-row"><input id="valor-pagamento" placeholder="Valor do pagamento (ex: 100.00)" value="" type="number" step="0.01"></div>
       <div class="form-row"><input id="observacao-pagamento" placeholder="Observação" value=""></div>
-      <div id="sim-result" style="margin-bottom: 10px;"></div>
-      <button class="btn" id="sim-btn">Simular Pagamento</button>
-      <button class="btn" id="pay-btn" style="margin-left: 10px;">Registrar Pagamento</button>
+      <button class="btn" id="pay-btn">Registrar Pagamento</button>
       <button class="btn secondary" id="cancel-btn">Cancelar</button>
     `;
     page.appendChild(form);
-    document.getElementById('sim-btn').onclick = async () => {
-      const dividaId = document.getElementById('debt-select').value;
-      const valor = document.getElementById('valor-pagamento').value;
-      if (!dividaId || !valor) {
-        alert('Selecione uma dívida e valor');
-        return;
-      }
-      try {
-        const res = await fetch(`${API_BASE}/dividas/${dividaId}/simular-pagamento`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ valor: valor })
-        });
-        const json = await res.json();
-        const resultDiv = document.getElementById('sim-result');
-        if (!res.ok) {
-          resultDiv.innerHTML = `<div style="color: red;">Erro: ${json.erro}</div>`;
-          return;
-        }
-        const novoSaldoVal = parseFloat(json.novoSaldo);
-        const quitada = json.quitada ? 'Sim, dívida será quitada.' : 'Não, dívida remanescente: ' + formatCurrency(novoSaldoVal);
-        resultDiv.innerHTML = `<div style="color: green;">Novo dívida: ${formatCurrency(novoSaldoVal)}. Quitada: ${quitada}</div>`;
-      } catch(e) {
-        alert('Erro: ' + e.message);
-      }
-    };
     document.getElementById('pay-btn').onclick = async () => {
       const dividaId = document.getElementById('debt-select').value;
       const valor = document.getElementById('valor-pagamento').value;

@@ -32,7 +32,6 @@
           <button data-route="credores">Credores</button>
           <button data-route="dividas">Dívidas</button>
           <button data-route="pagamentos">Pagamentos</button>
-          <button data-route="plano">Gerar Plano</button>
         </nav>
       </aside>
 
@@ -64,10 +63,6 @@
                 <p>Monitore registros de pagamentos realizados.</p>
               </div>
               <div class="feature-card" style="text-align: left;">
-                <h3>📈 Planos</h3>
-                <p>Gere e analise planos de quitação.</p>
-              </div>
-              <div class="feature-card" style="text-align: left;">
                 <h3>🔧 Admin</h3>
                 <p>Controle total com capacidades de CRUD completo.</p>
               </div>
@@ -96,13 +91,12 @@
     function navigate(route) {
       pageElement.innerHTML = '';
       if (currentMode === 'dev') {
-        pageTitle.textContent = ({home:'Menu Dev',usuarios:'Usuários',credores:'Credores',dividas:'Dívidas',pagamentos:'Pagamentos',plano:'Gerar Plano'}[route] || 'Menu');
+        pageTitle.textContent = ({home:'Menu Dev',usuarios:'Usuários',credores:'Credores',dividas:'Dívidas',pagamentos:'Pagamentos'}[route] || 'Menu');
         if (route === 'home') return renderDevHome();
         if (route === 'usuarios') return renderUsuarios();
         if (route === 'credores') return renderCredores();
         if (route === 'dividas') return renderDividas();
         if (route === 'pagamentos') return renderPagamentos();
-        if (route === 'plano') return renderGerarPlano();
       }
     }
 
@@ -130,7 +124,6 @@
           <button data-route="credores" onclick="buttonClicked(this)">Credores</button>
           <button data-route="dividas" onclick="buttonClicked(this)">Dívidas</button>
           <button data-route="pagamentos" onclick="buttonClicked(this)">Pagamentos</button>
-          <button data-route="plano" onclick="buttonClicked(this)">Gerar Plano</button>
         `;
       }
 
